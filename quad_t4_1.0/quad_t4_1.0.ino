@@ -88,6 +88,11 @@ class Pid{
       gains[2] = newGain;
       return gains[2];
     }
+
+    bool reset(){
+      iError = 0;
+      prevError = 0;
+    }
 };
 
 typedef union MpuData{
@@ -190,7 +195,8 @@ int main() {
   // ===== Scope Variables =====
   
   uint64_t timePrev = 0;
-  uint8_t printCounter = 0;
+  uint8_t printCounter1 = 0;
+  uint8_t printCounter2 = 0;
 
   mpuData_t mpuData;
   mpuData_t mpuOffsets;
@@ -241,7 +247,7 @@ int main() {
       float tmp1 = pitchPid.updateKi(map(controls.auxA, 0.0, 100.0, 0.0, 0.01));
       float tmp2 = pitchPid.updateKd(map(controls.auxB, 0.0, 100.0, 0.0, 1.0));
       // controlSensitivity = map(controls.auxA, 0.0, 100.0, 45.0, 90.0);
-      if(printCounter++ == 0){
+      if(printCounter1++ == 0){
         // Serial.print(controlSensitivity); Serial.print("\t");
         Serial.print(tmp1*1000); Serial.print(" /1000\t"); Serial.print(tmp2*1000); Serial.print(" /1000\t");
         // Serial.print(controls.throttle); Serial.print("\t"); Serial.print(controls.pitch); Serial.print("\t"); Serial.print(controls.roll); Serial.print("\t"); Serial.print(controls.yaw); Serial.print("\t"); 
@@ -252,8 +258,12 @@ int main() {
         if(controls.throttle < 0.5 && controls.yaw < 0.5 && controls.roll < 0.5 && controls.pitch < 0.5 && millis() > armedTime + 1000){
           // Serial.print(controls.throttle); Serial.print("\t"); Serial.print(controls.yaw); Serial.print("\t"); Serial.print(controls.roll); Serial.print("\t"); Serial.print(controls.pitch); Serial.print("\t"); 
           // Serial.println();
-          armed++;
+          armed = !armed;
+          // Serial.println(armed);
           armedTime = millis();
+          pitchPid.reset();
+          rollPid.reset();
+          yawPid.reset();
         }
         
         if(armed){
@@ -271,7 +281,7 @@ int main() {
           tSpeeds.bR = limitMotors(baseThrust - pitchAdjust - rollAdjust - yawAdjust);
           tSpeeds.bL = limitMotors(baseThrust - pitchAdjust + rollAdjust + yawAdjust);
           
-          if(printCounter++ == 0){
+          if(printCounter2++ == 0){
             Serialprint(tSpeeds);
           }
           updateThrusters(&tSpeeds);
@@ -279,7 +289,7 @@ int main() {
         else{
           thrusterData_t zeroedSpeeds;
           updateThrusters(&zeroedSpeeds);  // turn thrusters off
-          if(printCounter++ == 0){
+          if(printCounter2++ == 0){
             Serialprint(zeroedSpeeds);
             // Serial.print(armed); Serial.println("this");
           }
@@ -288,7 +298,7 @@ int main() {
       else{
           thrusterData_t zeroedSpeeds;
           updateThrusters(&zeroedSpeeds);  // turn thrusters off
-          if(printCounter++ == 0){
+          if(printCounter2++ == 0){
             Serialprint(zeroedSpeeds);
             // Serial.println("that");
           }
