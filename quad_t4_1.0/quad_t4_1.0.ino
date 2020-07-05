@@ -30,6 +30,7 @@ uint32_t timeStep = (uint32_t)(1000000 / (double)RATE);
 
 bool doMpuCal = false;
 bool doThrusterCal = false;
+bool radioLimitsSet = false;
 bool armed = false;
 uint32_t armedTime;
 
@@ -231,21 +232,29 @@ int main() {
     uint32_t timeDelta = timeNow - timePrev;
     if(radioNew){
       radioNew &= 0;  // reset flag
-      runRadio(&controls);
+      radioLimitsSet = runRadio(&controls);
       // Serial.println((uint32_t)(timeNow - radioLastUpdate));
       radioLastUpdate = timeNow;
     }
+    
+    // every timeStep
     if(timeDelta >= timeStep){
       timePrev += timeDelta;
+
+      // poll MPU for new data
       updateMpuData(&mpuData, &mpuOffsets);
+      // update rate of rotations
       angles.dP = mpuData.merged.p/gyScale;
       angles.dR = -mpuData.merged.r/gyScale;
       angles.dY = mpuData.merged.y/gyScale;
+      // Print readable
       // Serial.print(angles.dP); Serial.print("\t"); Serial.print(angles.dR); Serial.print("\t"); Serial.print(angles.dY); Serial.print("\t");
       // Serial.println();
 
+      // Set PID Gains based on controller input - REMOVE - for tuning only
       float tmp1 = pitchPid.updateKi(map(controls.auxA, 0.0, 100.0, 0.0, 0.01));
       float tmp2 = pitchPid.updateKd(map(controls.auxB, 0.0, 100.0, 0.0, 1.0));
+      
       // controlSensitivity = map(controls.auxA, 0.0, 100.0, 45.0, 90.0);
       if(printCounter1++ == 0){
         // Serial.print(controlSensitivity); Serial.print("\t");
@@ -254,8 +263,11 @@ int main() {
         Serial.println();
       }
 
+      // if radio not disconnected
       if((timeNow - radioLastUpdate) < 50000){
-        if(controls.throttle < 0.5 && controls.yaw < 0.5 && controls.roll < 0.5 && controls.pitch < 0.5 && millis() > armedTime + 1000){
+        
+        // arm/disarm if both sticks moved to bottom-left, debounced, and radio limits have been set
+        if(controls.throttle < 0.5 && controls.yaw < 0.5 && controls.roll < 0.5 && controls.pitch < 0.5 && millis() > armedTime + 1000 && radioLimitsSet){
           // Serial.print(controls.throttle); Serial.print("\t"); Serial.print(controls.yaw); Serial.print("\t"); Serial.print(controls.roll); Serial.print("\t"); Serial.print(controls.pitch); Serial.print("\t"); 
           // Serial.println();
           armed = !armed;
