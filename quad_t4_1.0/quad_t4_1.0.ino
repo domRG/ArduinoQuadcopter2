@@ -258,8 +258,8 @@ int main() {
       // controlSensitivity = map(controls.auxA, 0.0, 100.0, 45.0, 90.0);
       if(printCounter1++ == 0){
         // Serial.print(controlSensitivity); Serial.print("\t");
-        Serial.print(tmp1*1000); Serial.print(" /1000\t"); Serial.print(tmp2*1000); Serial.print(" /1000\t");
-        // Serial.print(controls.throttle); Serial.print("\t"); Serial.print(controls.pitch); Serial.print("\t"); Serial.print(controls.roll); Serial.print("\t"); Serial.print(controls.yaw); Serial.print("\t"); 
+        // Serial.print(tmp1*1000); Serial.print(" /1000\t"); Serial.print(tmp2*1000); Serial.print(" /1000\t");
+        Serial.print(controls.throttle); Serial.print("\t"); Serial.print(controls.pitch); Serial.print("\t"); Serial.print(controls.roll); Serial.print("\t"); Serial.print(controls.yaw); Serial.print("\t"); 
         Serial.println();
       }
 
@@ -267,11 +267,12 @@ int main() {
       if((timeNow - radioLastUpdate) < 50000){
         
         // arm/disarm if both sticks moved to bottom-left, debounced, and radio limits have been set
-        if(controls.throttle < 0.5 && controls.yaw < 0.5 && controls.roll < 0.5 && controls.pitch < 0.5 && millis() > armedTime + 1000 && radioLimitsSet){
+        float armSensitivity = 2.5;
+        if(controls.throttle < armSensitivity && controls.yaw < armSensitivity && controls.roll < armSensitivity && controls.pitch < armSensitivity && millis() > armedTime + 1000 && radioLimitsSet){
           // Serial.print(controls.throttle); Serial.print("\t"); Serial.print(controls.yaw); Serial.print("\t"); Serial.print(controls.roll); Serial.print("\t"); Serial.print(controls.pitch); Serial.print("\t"); 
           // Serial.println();
           armed = !armed;
-          // Serial.println(armed);
+          Serial.println(armed);
           armedTime = millis();
           pitchPid.reset();
           rollPid.reset();
@@ -294,7 +295,7 @@ int main() {
           tSpeeds.bL = limitMotors(baseThrust - pitchAdjust + rollAdjust + yawAdjust);
           
           if(printCounter2++ == 0){
-            Serialprint(tSpeeds);
+            // Serialprint(tSpeeds);
           }
           updateThrusters(&tSpeeds);
         }
@@ -302,7 +303,7 @@ int main() {
           thrusterData_t zeroedSpeeds;
           updateThrusters(&zeroedSpeeds);  // turn thrusters off
           if(printCounter2++ == 0){
-            Serialprint(zeroedSpeeds);
+            // Serialprint(zeroedSpeeds);
             // Serial.print(armed); Serial.println("this");
           }
         }

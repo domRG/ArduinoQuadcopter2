@@ -7,7 +7,7 @@ uint16_t limitsSet = 0;  // bit flags for when limits have been set (channel mov
 float deadZone = 10.0;
 uint8_t dropped[6] = {0, 0, 0, 0, 0, 0};
 
-float inputs[6] = {0, 0, 0, 0, 0, 0};
+float inputPercentages[6] = {0, 0, 0, 0, 0, 0};
 
 int ch[6] = {21, 20, 17, 16, 15, 14};
 
@@ -25,12 +25,12 @@ void setupRadio() {
 }
 
 bool runRadio(radioData_t* outControls){
-  outControls->roll = inputs[0];
-  outControls->pitch = inputs[1];
-  outControls->throttle = inputs[2];
-  outControls->yaw = inputs[3];
-  outControls->auxA = inputs[4];
-  outControls->auxB = inputs[5];
+  outControls->roll = inputPercentages[0];
+  outControls->pitch = inputPercentages[1];
+  outControls->throttle = inputPercentages[2];
+  outControls->yaw = inputPercentages[3];
+  outControls->auxA = inputPercentages[4];
+  outControls->auxB = inputPercentages[5];
   return (limitsSet == 0b0000111111111111) ? true : false;
 }
 
@@ -47,7 +47,7 @@ void ch0Interrupt() {
       deltaMax[i] = delta;
       limitsSet |= (1 << (2*i + 1) );
     }
-    inputs[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
+    inputPercentages[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta to percentage;
     radioNew |= (1 << i);
     prevDelta[i] = delta;
     dropped[i] = 0;
@@ -71,7 +71,7 @@ void ch1Interrupt() {
       deltaMax[i] = delta;
       limitsSet |= (1 << (2*i + 1) );
     }
-    inputs[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
+    inputPercentages[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
     radioNew |= (1 << i);
     prevDelta[i] = delta;
     dropped[i] = 0;
@@ -95,7 +95,7 @@ void ch2Interrupt() {
       deltaMax[i] = delta;
       limitsSet |= (1 << (2*i + 1) );
     }
-    inputs[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
+    inputPercentages[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
     radioNew |= (1 << i);
     prevDelta[i] = delta;
     dropped[i] = 0;
@@ -119,7 +119,7 @@ void ch3Interrupt() {
       deltaMax[i] = delta;
       limitsSet |= (1 << (2*i + 1) );
     }
-    inputs[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
+    inputPercentages[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
     radioNew |= (1 << i);
     prevDelta[i] = delta;
     dropped[i] = 0;
@@ -143,7 +143,7 @@ void ch4Interrupt() {
       deltaMax[i] = delta;
       limitsSet |= (1 << (2*i + 1) );
     }
-    inputs[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
+    inputPercentages[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
     radioNew |= (1 << i);
     prevDelta[i] = delta;
     dropped[i] = 0;
@@ -167,7 +167,7 @@ void ch5Interrupt() {
       deltaMax[i] = delta;
       limitsSet |= (1 << (2*i + 1) );
     }
-    inputs[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
+    inputPercentages[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
     radioNew |= (1 << i);
     prevDelta[i] = delta;
     dropped[i] = 0;
