@@ -259,7 +259,7 @@ int main() {
       if(printCounter1++ == 0){
         // Serial.print(controlSensitivity); Serial.print("\t");
         // Serial.print(tmp1*1000); Serial.print(" /1000\t"); Serial.print(tmp2*1000); Serial.print(" /1000\t");
-        Serial.print(controls.throttle); Serial.print("\t"); Serial.print(controls.pitch); Serial.print("\t"); Serial.print(controls.roll); Serial.print("\t"); Serial.print(controls.yaw); Serial.print("\t"); 
+        Serial.print("tpry - "); Serial.print(controls.throttle); Serial.print("\t"); Serial.print(controls.pitch); Serial.print("\t"); Serial.print(controls.roll); Serial.print("\t"); Serial.print(controls.yaw); Serial.print("\t"); 
         Serial.println();
       }
 
@@ -312,7 +312,7 @@ int main() {
           thrusterData_t zeroedSpeeds;
           updateThrusters(&zeroedSpeeds);  // turn thrusters off
           if(printCounter2++ == 0){
-            Serialprint(zeroedSpeeds);
+            // Serialprint(zeroedSpeeds);
             // Serial.println("that");
           }
         }
