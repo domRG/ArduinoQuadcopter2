@@ -34,7 +34,7 @@ bool runRadio(radioData_t* outControls){  // sets control structure to contain r
   return (limitsSet == 0b0000111111111111) ? true : false;  // ignore
 }
 
-void interrupteHandling(uint8_t channelId){
+void interruptHandling(uint8_t channelId){
   uint32_t noww = micros();
   float delta = (float)(noww - startTime[channelId]) * deltaBalance + (1 - deltaBalance) * prevDelta[channelId];  // calculate pulse width including small exponential filter to decrease noise
   if ((delta < 2050 && delta > 950)){  // within expected range
@@ -58,31 +58,25 @@ void interrupteHandling(uint8_t channelId){
 }
 
 void ch0Interrupt() {
-  uint8_t i = 0;  // channel identifier
-  interrupteHandling(i);
+  interruptHandling(0);
 }
 
 void ch1Interrupt() {
-  uint8_t i = 1;
-  interrupteHandling(i);
+  interruptHandling(1);
 }
 
 void ch2Interrupt() {
-  uint8_t i = 2;
-  interrupteHandling(i);
+  interruptHandling(2);
 }
 
 void ch3Interrupt() {
-  uint8_t i = 3;
-  interrupteHandling(i);
+  interruptHandling(3);
 }
 
 void ch4Interrupt() {
-  uint8_t i = 4;
-  interrupteHandling(i);
+  interruptHandling(4);
 }
 
 void ch5Interrupt() {
-  uint8_t i = 5;
-  interrupteHandling(i);
+  interruptHandling(5);
 }
