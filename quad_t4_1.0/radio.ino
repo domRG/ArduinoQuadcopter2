@@ -3,7 +3,7 @@ float prevDelta[6] = {1500, 1500, 1500, 1500, 1500, 1500};
 float deltaBalance = 0.85;
 float deltaMax[6] = {1750, 1750, 1750, 1750, 1750, 1750};
 float deltaMin[6] = {1250, 1250, 1250, 1250, 1250, 1250};
-uint16_t limitsSet = 0;  // bit flags for when limits have been set (channel moved to an extreme value to set edge limits, ie throttleMax)
+uint16_t limitsSet = 0b 0000100000000000;  // bit flags for when limits have been set (channel moved to an extreme value to set edge limits, ie throttleMax) - ch5Max ch5Min ch4Max etc ch0Min - preset ch5Max as this is 'arm' so will sit at min until switched on
 float deadZone = 10.0;
 uint8_t dropped[6] = {0, 0, 0, 0, 0, 0};
 
@@ -24,156 +24,65 @@ void setupRadio() {
   attachInterrupt(digitalPinToInterrupt(ch[5]), ch5Interrupt, CHANGE);  // 14 = ch6, 15 = ch5, 16 = ch4, 17 = ch3, 20 = ch2, 21 = ch1
 }
 
-bool runRadio(radioData_t* outControls){
+bool runRadio(radioData_t* outControls){  // sets control structure to contain radio data, returns true only if all control limits have been changed - ie sticks and channels moved though entire range to calibrate max and min
   outControls->roll = inputPercentages[0];
   outControls->pitch = inputPercentages[1];
   outControls->throttle = inputPercentages[2];
   outControls->yaw = inputPercentages[3];
   outControls->auxA = inputPercentages[4];
   outControls->auxB = inputPercentages[5];
-  return (limitsSet == 0b0000111111111111) ? true : false;
+  return (limitsSet == 0b0000111111111111) ? true : false;  // ignore
+}
+
+void interrupteHandling(uint8_t channelId){
+  uint32_t noww = micros();
+  float delta = (float)(noww - startTime[channelId]) * deltaBalance + (1 - deltaBalance) * prevDelta[channelId];  // calculate pulse width including small exponential filter to decrease noise
+  if ((delta < 2050 && delta > 950)){  // within expected range
+    if(delta < deltaMin[channelId]){  // update minimum recorded and flag limit set for channel min
+      deltaMin[channelId] = delta;
+      limitsSet |= (1 << (2*channelId) );
+    }
+    else if(delta > deltaMax[channelId]){  // update maximum recorded and flag limit set for channel max
+      deltaMax[channelId] = delta;
+      limitsSet |= (1 << (2*channelId + 1) );
+    }
+    inputPercentages[channelId] = map(delta, deltaMin[channelId], deltaMax[channelId], 0.0, 100.0);  // convert delta to percentage
+    radioNew |= (1 << channelId);  // flag new signal
+    prevDelta[channelId] = delta;
+    dropped[channelId] = 0;
+  }
+  else{
+    dropped[channelId]++;  // outside range = dropped frame, record for lost signal handling
+  }
+  startTime[channelId] = noww;
 }
 
 void ch0Interrupt() {
-  uint8_t i = 0;
-  uint32_t noww = micros();
-  float delta = (float)(noww - startTime[i]) * deltaBalance + (1 - deltaBalance) * prevDelta[i];
-  if ((delta < 2050 && delta > 950)){
-    if(delta < deltaMin[i]){
-      deltaMin[i] = delta;
-      limitsSet |= (1 << (2*i) );
-    }
-    else if(delta > deltaMax[i]){
-      deltaMax[i] = delta;
-      limitsSet |= (1 << (2*i + 1) );
-    }
-    inputPercentages[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta to percentage;
-    radioNew |= (1 << i);
-    prevDelta[i] = delta;
-    dropped[i] = 0;
-  }
-  else{
-    dropped[i]++;
-  }
-  startTime[i] = noww;
+  uint8_t i = 0;  // channel identifier
+  interrupteHandling(i);
 }
 
 void ch1Interrupt() {
   uint8_t i = 1;
-  uint32_t noww = micros();
-  float delta = (float)(noww - startTime[i]) * deltaBalance + (1 - deltaBalance) * prevDelta[i];
-  if ((delta < 2050 && delta > 950)){
-    if(delta < deltaMin[i]){
-      deltaMin[i] = delta;
-      limitsSet |= (1 << (2*i) );
-    }
-    else if(delta > deltaMax[i]){
-      deltaMax[i] = delta;
-      limitsSet |= (1 << (2*i + 1) );
-    }
-    inputPercentages[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
-    radioNew |= (1 << i);
-    prevDelta[i] = delta;
-    dropped[i] = 0;
-  }
-  else{
-    dropped[i]++;
-  }
-  startTime[i] = noww;
+  interrupteHandling(i);
 }
 
 void ch2Interrupt() {
   uint8_t i = 2;
-  uint32_t noww = micros();
-  float delta = (float)(noww - startTime[i]) * deltaBalance + (1 - deltaBalance) * prevDelta[i];
-  if ((delta < 2050 && delta > 950)){
-    if(delta < deltaMin[i]){
-      deltaMin[i] = delta;
-      limitsSet |= (1 << (2*i) );
-    }
-    else if(delta > deltaMax[i]){
-      deltaMax[i] = delta;
-      limitsSet |= (1 << (2*i + 1) );
-    }
-    inputPercentages[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
-    radioNew |= (1 << i);
-    prevDelta[i] = delta;
-    dropped[i] = 0;
-  }
-  else{
-    dropped[i]++;
-  }
-  startTime[i] = noww;
+  interrupteHandling(i);
 }
 
 void ch3Interrupt() {
   uint8_t i = 3;
-  uint32_t noww = micros();
-  float delta = (float)(noww - startTime[i]) * deltaBalance + (1 - deltaBalance) * prevDelta[i];
-  if ((delta < 2050 && delta > 950)){
-    if(delta < deltaMin[i]){
-      deltaMin[i] = delta;
-      limitsSet |= (1 << (2*i) );
-    }
-    else if(delta > deltaMax[i]){
-      deltaMax[i] = delta;
-      limitsSet |= (1 << (2*i + 1) );
-    }
-    inputPercentages[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
-    radioNew |= (1 << i);
-    prevDelta[i] = delta;
-    dropped[i] = 0;
-  }
-  else{
-    dropped[i]++;
-  }
-  startTime[i] = noww;
+  interrupteHandling(i);
 }
 
 void ch4Interrupt() {
   uint8_t i = 4;
-  uint32_t noww = micros();
-  float delta = (float)(noww - startTime[i]) * deltaBalance + (1 - deltaBalance) * prevDelta[i];
-  if ((delta < 2050 && delta > 950)){
-    if(delta < deltaMin[i]){
-      deltaMin[i] = delta;
-      limitsSet |= (1 << (2*i) );
-    }
-    else if(delta > deltaMax[i]){
-      deltaMax[i] = delta;
-      limitsSet |= (1 << (2*i + 1) );
-    }
-    inputPercentages[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
-    radioNew |= (1 << i);
-    prevDelta[i] = delta;
-    dropped[i] = 0;
-  }
-  else{
-    dropped[i]++;
-  }
-  startTime[i] = noww;
+  interrupteHandling(i);
 }
 
 void ch5Interrupt() {
   uint8_t i = 5;
-  uint32_t noww = micros();
-  float delta = (float)(noww - startTime[i]) * deltaBalance + (1 - deltaBalance) * prevDelta[i];
-  if ((delta < 2050 && delta > 950)){
-    if(delta < deltaMin[i]){
-      deltaMin[i] = delta;
-      limitsSet |= (1 << (2*i) );
-    }
-    else if(delta > deltaMax[i]){
-      deltaMax[i] = delta;
-      limitsSet |= (1 << (2*i + 1) );
-    }
-    inputPercentages[i] = map(delta, deltaMin[i], deltaMax[i], 0.0, 100.0);  // delta;
-    radioNew |= (1 << i);
-    prevDelta[i] = delta;
-    dropped[i] = 0;
-  }
-  else{
-    dropped[i]++;
-  }
-  startTime[i] = noww;
+  interrupteHandling(i);
 }
