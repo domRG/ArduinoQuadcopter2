@@ -1,6 +1,7 @@
 ////// TODO
 /// use auxA to set flyable / pid tuning setting
 /// option to recalibrate the gyro mid session
+/// store PID values in EEPROM
 
 
 #include <Wire.h>
@@ -324,9 +325,9 @@ int main() {
 
 
       // === if radio signal in the last 70ms - pulse every 20ms so missed 3 pulses
-      if ((timeNow - radioLastUpdate) < 70000) {
+      if ((timeNow - radioLastUpdate) < 70000 && radioLimitsSet) {
 
-        if (controls.auxB > 90.0 && radioLimitsSet) {  // arm switch on and limits set
+        if (controls.auxB > 90.0) {  // arm switch on and limits set
           float baseThrust = map(controls.throttle, 0.0, 100.0, throttleLim[0], throttleLim[1]);
           setpointAngles.dP = mapDeadzone(controls.pitch, 0.0, 100.0, controlSensitivity, -controlSensitivity, deadZoneSensitivity);  // inverted
           setpointAngles.dR = mapDeadzone(controls.roll, 0.0, 100.0, -controlSensitivity, controlSensitivity, deadZoneSensitivity);
@@ -348,7 +349,7 @@ int main() {
         }
         else { // if arm switch not on or limits not set
 
-          if (radioLimitsSet) {
+          if (controls.auxA > 90) {
 
             // tune:
             //  pitch up - increase a little bit
@@ -480,7 +481,7 @@ int main() {
 
                 break;
             }
-          }
+
 
           thrusterData_t zeroedSpeeds;
           updateThrusters(&zeroedSpeeds);  // turn thrusters off
