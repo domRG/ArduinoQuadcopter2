@@ -1,5 +1,6 @@
 ////// TODO
-/// change how PID values can be set without pc
+/// use auxA to set flyable / pid tuning setting
+/// option to recalibrate the gyro mid session
 
 
 #include <Wire.h>
