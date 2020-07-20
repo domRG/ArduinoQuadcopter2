@@ -92,6 +92,10 @@ class Pid {
       else { // incDir == 0
         k.p = newGain;
       }
+      
+      if (k.p < 0.0) {
+        k.p = 0.0;
+      }
       return k.p;
     }
 
@@ -105,6 +109,10 @@ class Pid {
       else { // incDir == 0
         k.i = newGain;
       }
+      
+      if (k.i < 0.0) {
+        k.i = 0.0;
+      }
       return k.i;
     }
 
@@ -117,6 +125,10 @@ class Pid {
       }
       else { // incDir == 0
         k.d = newGain;
+      }
+      
+      if (k.d < 0.0) {
+        k.d = 0.0;
       }
       return k.d;
     }
@@ -239,6 +251,7 @@ int main() {
   uint8_t printCounter1 = 0;
   uint8_t printCounter2 = 0;
   uint64_t prevPidTuneTime = 0;
+  int pidTuneState = 0;
 
   mpuData_t mpuData;
   mpuData_t mpuOffsets;
@@ -342,83 +355,129 @@ int main() {
             //  roll right (up) - increase more
             //  roll left (down) - decrease more
 
-            if (controls.throttle > 66.6) {  // tune p
-              if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
-                pitchPid.updateKp(0.01, 1);
-                rollPid.updateKp(0.01, 1);
-                prevPidTuneTime = millis();
-              }
-              else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
-                pitchPid.updateKp(0.01, -1);
-                rollPid.updateKp(0.01, -1);
-                prevPidTuneTime = millis();
-              }
-              else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
-                pitchPid.updateKp(0.1, 1);
-                rollPid.updateKp(0.1, 1);
-                prevPidTuneTime = millis();
-              }
-              else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
-                pitchPid.updateKp(0.1, -1);
-                rollPid.updateKp(0.1, -1);
-                prevPidTuneTime = millis();
-              }
-
-              if (printCounter1++ == 0) {
-                Serial.print("Kp = "); Serial.print(pitchPid.updateKp(0, 1) * 1000.0); Serial.println(" /1000.0");
-              }
+            if (printCounter1++ == 0) {
+              Serial.print("K{p,i,d} = "); Serial.print(pitchPid.updateKp(0, 1) * 1000.0); Serial.print(" /1000.0\t"); Serial.print(pitchPid.updateKi(0, 1) * 1000.0); Serial.print(" /1000.0\t"); Serial.print(pitchPid.updateKd(0, 1) * 1000.0); Serial.print(" /1000.0");
+              Serial.println();
             }
-            else if (controls.throttle > 33.3) {  // tune i
-              if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
-                pitchPid.updateKi(0.00001, 1);
-                rollPid.updateKi(0.00001, 1);
-                prevPidTuneTime = millis();
-              }
-              else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
-                pitchPid.updateKi(0.00001, -1);
-                rollPid.updateKi(0.00001, -1);
-                prevPidTuneTime = millis();
-              }
-              else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
-                pitchPid.updateKi(0.0001, 1);
-                rollPid.updateKi(0.0001, 1);
-                prevPidTuneTime = millis();
-              }
-              else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
-                pitchPid.updateKi(0.0001, -1);
-                rollPid.updateKi(0.0001, -1);
-                prevPidTuneTime = millis();
-              }
 
-              if (printCounter1++ == 0) {
-                Serial.print("Ki = "); Serial.print(pitchPid.updateKi(0, 1) * 1000.0); Serial.println(" /1000.0");
-              }
-            }
-            else {  // tune d
-              if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
-                pitchPid.updateKd(0.001, 1);
-                rollPid.updateKd(0.001, 1);
-                prevPidTuneTime = millis();
-              }
-              else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
-                pitchPid.updateKd(0.001, -1);
-                rollPid.updateKd(0.001, -1);
-                prevPidTuneTime = millis();
-              }
-              else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
-                pitchPid.updateKd(0.01, 1);
-                rollPid.updateKd(0.01, 1);
-                prevPidTuneTime = millis();
-              }
-              else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
-                pitchPid.updateKd(0.01, -1);
-                rollPid.updateKd(0.01, -1);
-                prevPidTuneTime = millis();
-              }
+            switch (pidTuneState) {
+              case 0:
 
-              if (printCounter1++ == 0) {
-                Serial.print("Kd = "); Serial.print(pitchPid.updateKd(0, 1) * 1000.0); Serial.println(" /1000.0");
-              }
+                if (controls.throttle > 66.6) {  // tune p
+                  pidTuneState = 1;
+                }
+                else if (controls.throttle > 33.3) {  // tune i
+                  pidTuneState = 2;
+                }
+                else {
+                  pidTuneState = 3;
+                }
+
+                break;
+
+              case 1:
+
+                if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50) {
+                  pitchPid.updateKp(0.01, 1);
+                  rollPid.updateKp(0.01, 1);
+                  prevPidTuneTime = millis();
+                  pidTuneState = -1;
+                }
+                else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50) {
+                  pitchPid.updateKp(0.01, -1);
+                  rollPid.updateKp(0.01, -1);
+                  prevPidTuneTime = millis();
+                  pidTuneState = -1;
+                }
+                else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50) {
+                  pitchPid.updateKp(0.1, 1);
+                  rollPid.updateKp(0.1, 1);
+                  prevPidTuneTime = millis();
+                  pidTuneState = -1;
+                }
+                else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50) {
+                  pitchPid.updateKp(0.1, -1);
+                  rollPid.updateKp(0.1, -1);
+                  prevPidTuneTime = millis();
+                  pidTuneState = -1;
+                }
+                else{
+                  pidTuneState = 0;
+                }
+
+                break;
+
+              case 2:
+
+                if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50) {
+                  pitchPid.updateKi(0.00001, 1);
+                  rollPid.updateKi(0.00001, 1);
+                  prevPidTuneTime = millis();
+                  pidTuneState = -1;
+                }
+                else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50) {
+                  pitchPid.updateKi(0.00001, -1);
+                  rollPid.updateKi(0.00001, -1);
+                  prevPidTuneTime = millis();
+                  pidTuneState = -1;
+                }
+                else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50) {
+                  pitchPid.updateKi(0.0001, 1);
+                  rollPid.updateKi(0.0001, 1);
+                  prevPidTuneTime = millis();
+                  pidTuneState = -1;
+                }
+                else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50) {
+                  pitchPid.updateKi(0.0001, -1);
+                  rollPid.updateKi(0.0001, -1);
+                  prevPidTuneTime = millis();
+                  pidTuneState = -1;
+                }
+                else{
+                  pidTuneState = 0;
+                }
+
+                break;
+
+              case 3:
+
+                if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50) {
+                  pitchPid.updateKd(0.001, 1);
+                  rollPid.updateKd(0.001, 1);
+                  prevPidTuneTime = millis();
+                  pidTuneState = -1;
+                }
+                else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50) {
+                  pitchPid.updateKd(0.001, -1);
+                  rollPid.updateKd(0.001, -1);
+                  prevPidTuneTime = millis();
+                  pidTuneState = -1;
+                }
+                else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50) {
+                  pitchPid.updateKd(0.01, 1);
+                  rollPid.updateKd(0.01, 1);
+                  prevPidTuneTime = millis();
+                  pidTuneState = -1;
+                }
+                else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50) {
+                  pitchPid.updateKd(0.01, -1);
+                  rollPid.updateKd(0.01, -1);
+                  prevPidTuneTime = millis();
+                  pidTuneState = -1;
+                }
+                else{
+                  pidTuneState = 0;
+                }
+
+                break;
+
+              case -1:  // waiting for pitch/roll to centre
+
+                if (controls.pitch > 40 && controls.pitch < 60 && controls.roll > 40 && controls.roll < 60) {
+                  pidTuneState = 0;
+                }
+
+                break;
             }
           }
 
