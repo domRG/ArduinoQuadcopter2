@@ -25,43 +25,44 @@ Servo bL;
 
 ///// =====
 
-#define RATE 1000  // rate to define speed of entire controller, MPU takes 834us so max rate is 1190.47619 (timeStep = 840us)
-uint32_t timeStep = (uint32_t)(1000000 / (double)RATE);
-
-bool doMpuCal = false;
-bool doThrusterCal = false;
 bool radioLimitsSet = false;
 bool armed = false;
 uint32_t armedTime;
 
+// Adjustable definitions
+
+#define RATE 1000  // rate to define speed of entire controller, MPU takes 834us so max rate is 1190.47619 (timeStep = 840us)
+uint32_t timeStep = (uint32_t)(1000000 / (double)RATE);
+bool doMpuCal = false;
+bool doThrusterCal = false;
 float motorLim[2] = {1100.0, 2000.0};
 float throttleLim[2] = {1200.0, 1900.0};
 float controlSensitivity = 75.0;  // 60 - 90 depending
 float deadZoneSensitivity = 0.1;
-// control limits
-#define c_BOTTOM -1
-#define c_LEFT -1
-#define c_CENTRE 0
-#define c_TOP 1
-#define c_RIGHT 1
 
-float pidInputs[4] = {1.4, 0.00e1, 0.0, 100.0};  // kP, kI, kD, windupLim  // 1.4, 0, 0
+float pidInputs[4] = {1.4, 0.001, 0.4, 100.0};  // kP, kI, kD, windupLim  // 1.4, 0, 0
 
 volatile static uint8_t radioNew = 0;
 
 float gyScale = 65.5;
 
+typedef struct PidGains {
+  float p;
+  float i;
+  float d;
+} pidGains_t;
+
 class Pid {
   private:
-    float gains[3];
+    pidGains_t k;
     float prevError;
     float iError;
     float iErrorLim;
   public:
     Pid(float kP = 0.0, float kI = 0.0, float kD = 0.0, float iELim = 250.0, float pE = 0.0, float iE = 0.0) {
-      gains[0] = kP;
-      gains[1] = kI;
-      gains[2] = kD;
+      k.p = kP;
+      k.i = kI;
+      k.d = kD;
       prevError = pE;
       iError = iE;
       iErrorLim = iELim;
@@ -78,22 +79,46 @@ class Pid {
         iError = -iErrorLim;
       }
 
-      return gains[0] * error + gains[1] * iError + gains[2] * dE;
+      return k.p * error + k.i * iError + k.d * dE;
     }
 
-    float updateKp(float newGain) {
-      gains[0] = newGain;
-      return gains[0];
+    float updateKp(float newGain, int incDir = 0) {
+      if (incDir > 0) {
+        k.p += newGain;
+      }
+      else if (incDir < 0) {
+        k.p -= newGain;
+      }
+      else { // incDir == 0
+        k.p = newGain;
+      }
+      return k.p;
     }
 
-    float updateKi(float newGain) {
-      gains[1] = newGain;
-      return gains[1];
+    float updateKi(float newGain, int incDir = 0) {
+      if (incDir > 0) {
+        k.i += newGain;
+      }
+      else if (incDir < 0) {
+        k.i -= newGain;
+      }
+      else { // incDir == 0
+        k.i = newGain;
+      }
+      return k.i;
     }
 
-    float updateKd(float newGain) {
-      gains[2] = newGain;
-      return gains[2];
+    float updateKd(float newGain, int incDir = 0) {
+      if (incDir > 0) {
+        k.d += newGain;
+      }
+      else if (incDir < 0) {
+        k.d -= newGain;
+      }
+      else { // incDir == 0
+        k.d = newGain;
+      }
+      return k.d;
     }
 
     void reset() {
@@ -213,6 +238,7 @@ int main() {
   uint64_t timePrev = 0;
   uint8_t printCounter1 = 0;
   uint8_t printCounter2 = 0;
+  uint64_t prevPidTuneTime = 0;
 
   mpuData_t mpuData;
   mpuData_t mpuOffsets;
@@ -276,17 +302,17 @@ int main() {
 
       // poll MPU for new data
       updateMpuData(&mpuData, &mpuOffsets);
-      
+
       // update rate of rotations
       angles.dP = mpuData.merged.p / gyScale;
       angles.dR = -mpuData.merged.r / gyScale;
       angles.dY = mpuData.merged.y / gyScale;
 
-      
+
       // === if radio signal in the last 70ms - pulse every 20ms so missed 3 pulses
       if ((timeNow - radioLastUpdate) < 70000) {
 
-        if (controls.auxB > 90.0 && radioLimitsSet) {
+        if (controls.auxB > 90.0 && radioLimitsSet) {  // arm switch on and limits set
           float baseThrust = map(controls.throttle, 0.0, 100.0, throttleLim[0], throttleLim[1]);
           setpointAngles.dP = mapDeadzone(controls.pitch, 0.0, 100.0, controlSensitivity, -controlSensitivity, deadZoneSensitivity);  // inverted
           setpointAngles.dR = mapDeadzone(controls.roll, 0.0, 100.0, -controlSensitivity, controlSensitivity, deadZoneSensitivity);
@@ -306,7 +332,96 @@ int main() {
           }
           updateThrusters(&tSpeeds);
         }
-        else { // if not armed
+        else { // if arm switch not on or limits not set
+
+          if (radioLimitsSet) {
+
+            // tune:
+            //  pitch up - increase a little bit
+            //  pitch down - decrease a little bit
+            //  roll right (up) - increase more
+            //  roll left (down) - decrease more
+
+            if (controls.throttle > 66.6) {  // tune p
+              if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
+                pitchPid.updateKp(0.01, 1);
+                rollPid.updateKp(0.01, 1);
+                prevPidTuneTime = millis();
+              }
+              else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
+                pitchPid.updateKp(0.01, -1);
+                rollPid.updateKp(0.01, -1);
+                prevPidTuneTime = millis();
+              }
+              else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
+                pitchPid.updateKp(0.1, 1);
+                rollPid.updateKp(0.1, 1);
+                prevPidTuneTime = millis();
+              }
+              else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
+                pitchPid.updateKp(0.1, -1);
+                rollPid.updateKp(0.1, -1);
+                prevPidTuneTime = millis();
+              }
+
+              if (printCounter1++ == 0) {
+                Serial.print("Kp = "); Serial.print(pitchPid.updateKp(0, 1) * 1000.0); Serial.println(" /1000.0");
+              }
+            }
+            else if (controls.throttle > 33.3) {  // tune i
+              if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
+                pitchPid.updateKi(0.00001, 1);
+                rollPid.updateKi(0.00001, 1);
+                prevPidTuneTime = millis();
+              }
+              else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
+                pitchPid.updateKi(0.00001, -1);
+                rollPid.updateKi(0.00001, -1);
+                prevPidTuneTime = millis();
+              }
+              else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
+                pitchPid.updateKi(0.0001, 1);
+                rollPid.updateKi(0.0001, 1);
+                prevPidTuneTime = millis();
+              }
+              else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
+                pitchPid.updateKi(0.0001, -1);
+                rollPid.updateKi(0.0001, -1);
+                prevPidTuneTime = millis();
+              }
+
+              if (printCounter1++ == 0) {
+                Serial.print("Ki = "); Serial.print(pitchPid.updateKi(0, 1) * 1000.0); Serial.println(" /1000.0");
+              }
+            }
+            else {  // tune d
+              if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
+                pitchPid.updateKd(0.001, 1);
+                rollPid.updateKd(0.001, 1);
+                prevPidTuneTime = millis();
+              }
+              else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
+                pitchPid.updateKd(0.001, -1);
+                rollPid.updateKd(0.001, -1);
+                prevPidTuneTime = millis();
+              }
+              else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
+                pitchPid.updateKd(0.01, 1);
+                rollPid.updateKd(0.01, 1);
+                prevPidTuneTime = millis();
+              }
+              else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 500) { // add debounce
+                pitchPid.updateKd(0.01, -1);
+                rollPid.updateKd(0.01, -1);
+                prevPidTuneTime = millis();
+              }
+
+              if (printCounter1++ == 0) {
+                Serial.print("Kd = "); Serial.print(pitchPid.updateKd(0, 1) * 1000.0); Serial.println(" /1000.0");
+              }
+            }
+          }
+
           thrusterData_t zeroedSpeeds;
           updateThrusters(&zeroedSpeeds);  // turn thrusters off
           pitchPid.reset();  // clear PIDs memory
