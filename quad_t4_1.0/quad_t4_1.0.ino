@@ -28,6 +28,13 @@ Servo bL;
 // aux1 4
 // aux2 5
 
+#define P_LARGE_CHANGE 0.1
+#define P_SMALL_CHANGE 0.01
+#define I_LARGE_CHANGE 0.0001
+#define I_SMALL_CHANGE 0.00001
+#define D_LARGE_CHANGE 0.1
+#define D_SMALL_CHANGE 0.01
+
 ///// =====
 
 bool radioLimitsSet = false;
@@ -385,12 +392,19 @@ int main() {
           if (controls.auxA > 90) {  // enter programming mode
             
             if (controls.yaw < 40){
-              if(controls.throttle > 90 && controls.pitch > 90 && controls.roll < 10){
+              if(controls.throttle > 90 && controls.pitch > 90 && controls.roll < 10){  // calibrate MPU
                 calibrateMpu(&mpuOffsets);
               }
             }
             else if(controls.yaw > 60) {
-
+              if(controls.throttle < 10 && controls.pitch < 10 && controls.roll > 90){  // reset all stored PID values to 0
+                pitchPid.updateKp(0);
+                rollPid.updateKp(0);
+                pitchPid.updateKi(0);
+                rollPid.updateKi(0);
+                pitchPid.updateKd(0);
+                rollPid.updateKd(0);
+              }
             }
             else{
               
@@ -423,26 +437,26 @@ int main() {
                 case 1:
 
                   if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                    pitchPid.updateKp(0.01, 1);
-                    rollPid.updateKp(0.01, 1);
+                    pitchPid.updateKp(P_SMALL_CHANGE, 1);
+                    rollPid.updateKp(P_SMALL_CHANGE, 1);
                     prevPidTuneTime = millis();
                     pidTuneState = -1;
                   }
                   else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                    pitchPid.updateKp(0.01, -1);
-                    rollPid.updateKp(0.01, -1);
+                    pitchPid.updateKp(P_SMALL_CHANGE, -1);
+                    rollPid.updateKp(P_SMALL_CHANGE, -1);
                     prevPidTuneTime = millis();
                     pidTuneState = -1;
                   }
                   else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                    pitchPid.updateKp(0.1, 1);
-                    rollPid.updateKp(0.1, 1);
+                    pitchPid.updateKp(P_LARGE_CHANGE, 1);
+                    rollPid.updateKp(P_LARGE_CHANGE, 1);
                     prevPidTuneTime = millis();
                     pidTuneState = -1;
                   }
                   else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                    pitchPid.updateKp(0.1, -1);
-                    rollPid.updateKp(0.1, -1);
+                    pitchPid.updateKp(P_LARGE_CHANGE, -1);
+                    rollPid.updateKp(P_LARGE_CHANGE, -1);
                     prevPidTuneTime = millis();
                     pidTuneState = -1;
                   }
@@ -455,26 +469,26 @@ int main() {
                 case 2:
 
                   if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                    pitchPid.updateKi(0.00001, 1);
-                    rollPid.updateKi(0.00001, 1);
+                    pitchPid.updateKi(I_SMALL_CHANGE, 1);
+                    rollPid.updateKi(I_SMALL_CHANGE, 1);
                     prevPidTuneTime = millis();
                     pidTuneState = -1;
                   }
                   else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                    pitchPid.updateKi(0.00001, -1);
-                    rollPid.updateKi(0.00001, -1);
+                    pitchPid.updateKi(I_SMALL_CHANGE, -1);
+                    rollPid.updateKi(I_SMALL_CHANGE, -1);
                     prevPidTuneTime = millis();
                     pidTuneState = -1;
                   }
                   else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                    pitchPid.updateKi(0.0001, 1);
-                    rollPid.updateKi(0.0001, 1);
+                    pitchPid.updateKi(I_LARGE_CHANGE, 1);
+                    rollPid.updateKi(I_LARGE_CHANGE, 1);
                     prevPidTuneTime = millis();
                     pidTuneState = -1;
                   }
                   else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                    pitchPid.updateKi(0.0001, -1);
-                    rollPid.updateKi(0.0001, -1);
+                    pitchPid.updateKi(I_LARGE_CHANGE, -1);
+                    rollPid.updateKi(I_LARGE_CHANGE, -1);
                     prevPidTuneTime = millis();
                     pidTuneState = -1;
                   }
@@ -487,26 +501,26 @@ int main() {
                 case 3:
 
                   if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                    pitchPid.updateKd(0.001, 1);
-                    rollPid.updateKd(0.001, 1);
+                    pitchPid.updateKd(D_SMALL_CHANGE, 1);
+                    rollPid.updateKd(D_SMALL_CHANGE, 1);
                     prevPidTuneTime = millis();
                     pidTuneState = -1;
                   }
                   else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                    pitchPid.updateKd(0.001, -1);
-                    rollPid.updateKd(0.001, -1);
+                    pitchPid.updateKd(D_SMALL_CHANGE, -1);
+                    rollPid.updateKd(D_SMALL_CHANGE, -1);
                     prevPidTuneTime = millis();
                     pidTuneState = -1;
                   }
                   else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                    pitchPid.updateKd(0.01, 1);
-                    rollPid.updateKd(0.01, 1);
+                    pitchPid.updateKd(D_LARGE_CHANGE, 1);
+                    rollPid.updateKd(D_LARGE_CHANGE, 1);
                     prevPidTuneTime = millis();
                     pidTuneState = -1;
                   }
                   else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                    pitchPid.updateKd(0.01, -1);
-                    rollPid.updateKd(0.01, -1);
+                    pitchPid.updateKd(D_LARGE_CHANGE, -1);
+                    rollPid.updateKd(D_LARGE_CHANGE, -1);
                     prevPidTuneTime = millis();
                     pidTuneState = -1;
                   }
