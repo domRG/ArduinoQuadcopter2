@@ -287,10 +287,20 @@ int main() {
   EEPROM.get(EEPROM_P_GAIN, storedGains[0]);
   EEPROM.get(EEPROM_I_GAIN, storedGains[1]);
   EEPROM.get(EEPROM_D_GAIN, storedGains[2]);
-  bool saveGainsToEeprom = true;
-  Pid pitchPid = Pid(storedGains[0], storedGains[1], storedGains[2], PID_I_LIM, saveGainsToEeprom);
-  Pid rollPid = Pid(storedGains[0], storedGains[1], storedGains[2], PID_I_LIM, !saveGainsToEeprom);
-  Pid yawPid = Pid(3, 0.02, 0, PID_I_LIM, !saveGainsToEeprom);
+
+  /*
+   * while(!Serial){}
+   * Serial.print(storedGains[0], 6); Serial.print("\t");
+   * Serial.print(storedGains[1], 6); Serial.print("\t");
+   * Serial.print(storedGains[2], 6); Serial.print("\t");
+   * Serial.println();
+   */
+  
+  bool pitchSaveGainsToEeprom = true;
+  bool rollSaveGainsToEeprom = !pitchSaveGainsToEeprom;
+  Pid pitchPid = Pid(storedGains[0], storedGains[1], storedGains[2], PID_I_LIM, pitchSaveGainsToEeprom);
+  Pid rollPid = Pid(storedGains[0], storedGains[1], storedGains[2], PID_I_LIM, rollSaveGainsToEeprom);
+  Pid yawPid = Pid(3, 0.02, 0, PID_I_LIM, false);
 
   // 0======================================0
   // |    _____  ______ ______ __  __ ____  |
@@ -299,8 +309,6 @@ int main() {
   // |  ___/ // /___   / /  / /_/ // ____/  |
   // | /____//_____/  /_/   \____//_/       |
   // 0======================================0
-
-  // Serial.begin(115200);
 
   setupRadio();
   setupMpu(&mpuOffsets);
@@ -393,7 +401,7 @@ int main() {
               //  roll left (down) - decrease more
 
               if (printCounter1++ == 0) {
-                Serial.print("K{p,i,d} = "); Serial.print(pitchPid.updateKp(0, 1) * 1000.0); Serial.print(" /1000.0\t"); Serial.print(pitchPid.updateKi(0, 1) * 1000.0); Serial.print(" /1000.0\t"); Serial.print(pitchPid.updateKd(0, 1) * 1000.0); Serial.print(" /1000.0");
+                Serial.print("K{p,i,d} = "); Serial.print(pitchPid.updateKp(0, 1), 6); Serial.print("\t"); Serial.print(pitchPid.updateKi(0, 1), 6); Serial.print("\t"); Serial.print(pitchPid.updateKd(0, 1), 6);
                 Serial.println();
               }
 
