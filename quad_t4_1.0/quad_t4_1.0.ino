@@ -69,16 +69,16 @@ typedef struct PidGains {
 class Pid {
   private:
     pidGains_t k;
-    float prevError;
+    float prev;
     float iError;
     float iErrorLim;
     bool saveToEeprom;
   public:
-    Pid(float kP = 0.0, float kI = 0.0, float kD = 0.0, float iELim = 250.0, bool saveGains = false, float pE = 0.0, float iE = 0.0) {
+    Pid(float kP = 0.0, float kI = 0.0, float kD = 0.0, float iELim = 250.0, bool saveGains = false, float p = 0.0, float iE = 0.0) {
       k.p = kP;
       k.i = kI;
       k.d = kD;
-      prevError = pE;
+      prev = p;
       iError = iE;
       iErrorLim = iELim;
       saveToEeprom = saveGains;
@@ -167,7 +167,7 @@ class Pid {
 
     void reset() {
       iError = 0;
-      prevError = 0;
+      // prev = 0;  // not required?
     }
 };
 

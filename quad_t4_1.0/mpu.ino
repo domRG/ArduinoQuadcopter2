@@ -94,6 +94,7 @@ void calibrateMpu(mpuData_t* offsets){
   // Serial.println(valsToCal);
   int32_t* sum = (int32_t*)calloc(valsToCal, sizeof(int32_t));
   mpuData_t *test = (mpuData_t*)calloc(1, sizeof(mpuData_t));
+  mpuData_t *test_filtered = (mpuData_t*)calloc(1, sizeof(mpuData_t));
   uint32_t samples = 0;
   uint64_t timePrev = 0;
   uint8_t printCounter = 0;
@@ -102,7 +103,7 @@ void calibrateMpu(mpuData_t* offsets){
     uint32_t timeDelta = micros() - timePrev;
     if(timeDelta >= timeStep){
       timePrev += timeDelta;
-      updateMpuData(test, offsets);
+      updateMpuData(test, test_filtered, offsets);
       samples++;
       if(printCounter++ == 0){
         Serial.print(".");
@@ -116,7 +117,7 @@ void calibrateMpu(mpuData_t* offsets){
     uint32_t timeDelta = micros() - timePrev;
     if(timeDelta >= timeStep){
       timePrev += timeDelta;
-      updateMpuData(test, offsets);
+      updateMpuData(test, test_filtered, offsets);
       for(uint8_t i = 0; i < valsToCal; i++){
         *(sum + i) += *(((int16_t*)test) + i);
       }
@@ -141,7 +142,7 @@ void calibrateMpu(mpuData_t* offsets){
   }
 }
 
-void updateMpuData(mpuData_t* data, mpuData_t* offsets){
+void updateMpuData(mpuData_t* data, mpuData_t* data_filtered, mpuData_t* offsets){
 //  uint32_t tstart = micros();
   Wire.beginTransmission(MPU_addr);
   Wire.write(GYRO_addr);
