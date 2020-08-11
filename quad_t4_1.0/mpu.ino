@@ -33,9 +33,34 @@ class FilterBuLp2
     }
 };
 
-FilterBuLp2 mpuFilterDp = FilterBuLp2();
-FilterBuLp2 mpuFilterDr = FilterBuLp2();
-FilterBuLp2 mpuFilterDy = FilterBuLp2();
+//Low pass chebyshev filter order=2 alpha1=0.05 
+class  FilterChLp2
+{
+  public:
+    FilterChLp2()
+    {
+      v[0]=0.0;
+      v[1]=0.0;
+    }
+  private:
+    float v[3];
+  public:
+    float step(float x) //class II 
+    {
+      v[0] = v[1];
+      v[1] = v[2];
+      v[2] = (5.698533564421289638e-2 * x)
+         + (-0.48488625972370702488 * v[0])
+         + (1.25694491714685541162 * v[1]);
+      return 
+         (v[0] + v[2])
+        +2 * v[1];
+    }
+};
+
+FilterChLp2 mpuFilterDp = FilterChLp2();
+FilterChLp2 mpuFilterDr = FilterChLp2();
+FilterChLp2 mpuFilterDy = FilterChLp2();
 
 void setupMpu(void* offsets){
   Wire.begin();
@@ -125,9 +150,20 @@ void updateMpuData(mpuData_t* data, mpuData_t* offsets){
   while(Wire.available() < 6){
     Serial.println("Waiting for MPU");
   }
-  data->merged.p = mpuFilterDp.step( (int16_t)(Wire.read() << 8 | Wire.read()) - offsets->merged.p );
-  data->merged.r = mpuFilterDr.step( (int16_t)(Wire.read() << 8 | Wire.read()) - offsets->merged.r );
-  data->merged.y = mpuFilterDy.step( (int16_t)(Wire.read() << 8 | Wire.read()) - offsets->merged.y );
+  data->raw.pH = Wire.read();
+  data->raw.pL = Wire.read();
+  data->merged.p -= offsets->merged.p;
+  data->raw.rH = Wire.read();
+  data->raw.rL = Wire.read();
+  data->merged.r -= offsets->merged.r;
+  data->raw.yH = Wire.read();
+  data->raw.yL = Wire.read();
+  data->merged.y -= offsets->merged.y;
+  
+  data_filtered->merged.p = mpuFilterDp.step(data->merged.p);
+  data_filtered->merged.r = mpuFilterDr.step(data->merged.r);
+  data_filtered->merged.y = mpuFilterDy.step(data->merged.y);
+  
 //  Wire.endTransmission(true);  // adds 150us (frees Wire for use by other code - not required)
 //  Serial.print(data->merged.p); Serial.print("\t"); Serial.print(data->merged.r); Serial.print("\t"); Serial.print(data->merged.y); Serial.print("\t"); Serial.print((uint32_t)micros() - tstart);
 //  Serial.println();

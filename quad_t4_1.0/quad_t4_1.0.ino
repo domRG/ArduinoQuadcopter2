@@ -32,8 +32,8 @@ Servo bL;
 
 #define P_LARGE_CHANGE 0.1
 #define P_SMALL_CHANGE 0.01
-#define I_LARGE_CHANGE 0.0001
-#define I_SMALL_CHANGE 0.00001
+#define I_LARGE_CHANGE 0.001
+#define I_SMALL_CHANGE 0.0001
 #define D_LARGE_CHANGE 0.1
 #define D_SMALL_CHANGE 0.01
 
@@ -84,9 +84,10 @@ class Pid {
       saveToEeprom = saveGains;
     }
 
-    float step(float error) {
-      float dE = error - prevError;
-      prevError = error;
+    float step(float setPoint, float current, float current_filtered) {
+      float dE = current_filtered - prev;
+      prev = current_filtered;
+      float error = setPoint - current;
       iError += error;
       if (iError > iErrorLim) {
         iError = iErrorLim;
@@ -285,9 +286,11 @@ int main() {
   int pidTuneState = 0;
 
   mpuData_t mpuData;
+  mpuData_t mpuData_filtered;
   mpuData_t mpuOffsets;
 
   angleData_t angles;
+  angleData_t angles_filtered;
   angleData_t setpointAngles;
   radioData_t controls;
   thrusterData_t tSpeeds;
@@ -358,7 +361,7 @@ int main() {
       timePrev += timeDelta;
 
       // poll MPU for new data
-      updateMpuData(&mpuData, &mpuOffsets);
+      updateMpuData(&mpuData, &mpuData_filtered, &mpuOffsets);
 
       // update rate of rotations
       angles.dP = mpuData.merged.p / gyScale;
@@ -375,9 +378,9 @@ int main() {
           setpointAngles.dR = mapDeadzone(controls.roll, 0.0, 100.0, -controlSensitivity, controlSensitivity, deadZoneSensitivity);
           setpointAngles.dY = mapDeadzone(controls.yaw, 0.0, 100.0, -controlSensitivity, controlSensitivity, deadZoneSensitivity);
 
-          float pitchAdjust = pitchPid.step(setpointAngles.dP - angles.dP);
-          float rollAdjust = rollPid.step(setpointAngles.dR - angles.dR);
-          float yawAdjust = yawPid.step(setpointAngles.dY - angles.dY);
+          float pitchAdjust = pitchPid.step(setpointAngles.dP, angles.dP, angles_filtered.dP);
+          float rollAdjust = rollPid.step(setpointAngles.dR, angles.dR, angles_filtered.dP);
+          float yawAdjust = yawPid.step(setpointAngles.dY, angles.dY, angles_filtered.dP);
 
           tSpeeds.fR = limitMotors(baseThrust + pitchAdjust - rollAdjust + yawAdjust);
           tSpeeds.fL = limitMotors(baseThrust + pitchAdjust + rollAdjust - yawAdjust);
