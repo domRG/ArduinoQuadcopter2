@@ -16,7 +16,7 @@ Servo bR;
 Servo bL;
 
 ///// ===== Addressbook
-//// 0 - 13 = reserved for uint16_t MPU cals  // gpL, gpH, grL, grH, gyL, gyH,( aL, aH, aL, aH, aL, aH, tL, tH)0
+//// 0 - 13 = reserved for uint16_t MPU cals  // gpL, gpH, grL, grH, gyL, gyH,( aL, aH, aL, aH, aL, aH, tL, tH)
 //// 14 - 25 = reserved for float (4 bytes) pid values
 #define EEPROM_P_GAIN 14
 #define EEPROM_I_GAIN 18
@@ -36,6 +36,8 @@ Servo bL;
 #define I_SMALL_CHANGE 0.0001
 #define D_LARGE_CHANGE 0.1
 #define D_SMALL_CHANGE 0.01
+
+// current working PID gains: 0.5, 0.0001, 0.01
 
 ///// =====
 
