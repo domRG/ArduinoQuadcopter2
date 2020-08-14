@@ -1,11 +1,9 @@
 ////// TODO
-/// use auxA to set flyable / pid tuning setting
-/// option to recalibrate the gyro mid session
-/// store PID values in EEPROM
-///time delay on settings in Program mode - timer for enter, 0 on exit
+/// Arming procedure
+/// Custom libraries
+/// Angle controller
 
-
-
+#include <MPU6050_DRG.h>
 #include <Wire.h>
 #include <EEPROM.h>
 #include <Servo.h>
@@ -37,7 +35,8 @@ Servo bL;
 #define D_LARGE_CHANGE 0.1
 #define D_SMALL_CHANGE 0.01
 
-// current working PID gains: 0.5, 0.0001, 0.01
+// working PID gains[0]: 0.5, 0.0001, 0.01
+// working PID gains[1]: 0.9, 0.0016, 0.03
 
 ///// =====
 
