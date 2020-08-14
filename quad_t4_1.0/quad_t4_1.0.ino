@@ -49,7 +49,7 @@ bool armed = false;
 #define RATE 1000  // rate to define speed of entire controller, MPU takes 834us so max rate is 1190.47619 (timeStep = 840us)
 uint32_t timeStep = (uint32_t)(1000000 / (double)RATE);
 bool doMpuCal = false;
-bool doThrusterCal = false;
+bool doThrusterCal = true;
 float motorLim[2] = {1100.0, 2000.0};
 float throttleLim[2] = {1200.0, 1900.0};
 float controlSensitivity = 75.0;  // 60 - 90 depending
@@ -384,10 +384,10 @@ int main() {
           float rollAdjust = rollPid.step(setpointAngles.dR, angles.dR, angles_filtered.dP);
           float yawAdjust = yawPid.step(setpointAngles.dY, angles.dY, angles_filtered.dP);
 
-          tSpeeds.fR = limitMotors(baseThrust + pitchAdjust - rollAdjust + yawAdjust);
-          tSpeeds.fL = limitMotors(baseThrust + pitchAdjust + rollAdjust - yawAdjust);
-          tSpeeds.bR = limitMotors(baseThrust - pitchAdjust - rollAdjust - yawAdjust);
-          tSpeeds.bL = limitMotors(baseThrust - pitchAdjust + rollAdjust + yawAdjust);
+          tSpeeds.fR = limitMotors(baseThrust + pitchAdjust - rollAdjust - yawAdjust);
+          tSpeeds.fL = limitMotors(baseThrust + pitchAdjust + rollAdjust + yawAdjust);
+          tSpeeds.bR = limitMotors(baseThrust - pitchAdjust - rollAdjust + yawAdjust);
+          tSpeeds.bL = limitMotors(baseThrust - pitchAdjust + rollAdjust - yawAdjust);
 
           if (printCounter2++ == 0) {
             // Serialprint(tSpeeds);

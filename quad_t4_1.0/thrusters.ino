@@ -10,7 +10,7 @@ void setupThrusters(bool doCal){
     fL.writeMicroseconds((int)thrustLim[1]);
     bR.writeMicroseconds((int)thrustLim[1]);
     bL.writeMicroseconds((int)thrustLim[1]);
-    delay(10000);
+    delay(1000);
   }
   fR.writeMicroseconds((int)thrustLim[0]);
   fL.writeMicroseconds((int)thrustLim[0]);
