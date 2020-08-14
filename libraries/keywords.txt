@@ -1,0 +1,5 @@
+# comment
+# KEYWORD1 - Bold & Orange
+# KEYWORD2 - Orange
+# LITERAL1 - Blue
+MPU6050_DRG KEYWORD1

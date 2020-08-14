@@ -1,62 +1,45 @@
-#define MPU_addr 0x68  // default MPU6050 address
-#define ACC_addr 0x3B
-#define TEMP_addr 0x41
-#define GYRO_addr 0x43
-#define mpuCalDelay 3000  // samples to bin befor offset calibration
-#define mpuCalSamples 3000  // samples to average for offset
+#include "MPU6050_DRG.h"
 
 //Low pass butterworth filter order=2 alpha1=0.12   -----   http://www.schwietering.com/jayduino/filtuino/index.php?characteristic=bu&passmode=lp&order=2&usesr=usesr&sr=250&frequencyLow=30&noteLow=&noteHigh=&pw=pw&calctype=long&bitres=16&run=Send
-class FilterBuLp2
+FilterBuLp2::FilterBuLp2()
 {
-  public:
-    FilterBuLp2()
-    {
-      for(int i=0; i <= 2; i++)
-        v[i]=0;
-    }
-  private:
-    short v[3];
-  public:
-    short step(short x)
-    {
-      v[0] = v[1];
-      v[1] = v[2];
-      long tmp = ((((x *  23938L) >>  4)  //= (   9.1314900436e-2 * x)
-        + ((v[0] * -22785L) >> 2) //+( -0.3476653949*v[0])
-        + ((v[1] * 32191L) >> 1)  //+(  0.9824057931*v[1])
-        )+8192) >> 14; // round and downshift fixed point /16384
+  for(int i=0; i <= 2; i++)
+	v[i]=0;
+}
 
-      v[2]= (short)tmp;
-      return (short)((
-         (v[0] + v[2])
-        +2 * v[1])); // 2^
-    }
-};
+short FilterBuLp2::step(short x)
+{
+  v[0] = v[1];
+  v[1] = v[2];
+  long tmp = ((((x *  23938L) >>  4)  //= (   9.1314900436e-2 * x)
+	+ ((v[0] * -22785L) >> 2) //+( -0.3476653949*v[0])
+	+ ((v[1] * 32191L) >> 1)  //+(  0.9824057931*v[1])
+	)+8192) >> 14; // round and downshift fixed point /16384
+
+  v[2]= (short)tmp;
+  return (short)((
+	 (v[0] + v[2])
+	+2 * v[1])); // 2^
+}
 
 //Low pass chebyshev filter order=2 alpha1=0.05 
-class  FilterChLp2
+FilterChLp2::FilterChLp2()
 {
-  public:
-    FilterChLp2()
-    {
-      v[0]=0.0;
-      v[1]=0.0;
-    }
-  private:
-    float v[3];
-  public:
-    float step(float x) //class II 
-    {
-      v[0] = v[1];
-      v[1] = v[2];
-      v[2] = (5.698533564421289638e-2 * x)
-         + (-0.48488625972370702488 * v[0])
-         + (1.25694491714685541162 * v[1]);
-      return 
-         (v[0] + v[2])
-        +2 * v[1];
-    }
-};
+  v[0]=0.0;
+  v[1]=0.0;
+}
+
+float FilterChLp2::step(float x) //class II 
+{
+  v[0] = v[1];
+  v[1] = v[2];
+  v[2] = (5.698533564421289638e-2 * x)
+	 + (-0.48488625972370702488 * v[0])
+	 + (1.25694491714685541162 * v[1]);
+  return 
+	 (v[0] + v[2])
+	+2 * v[1];
+}
 
 FilterChLp2 mpuFilterDp = FilterChLp2();
 FilterChLp2 mpuFilterDr = FilterChLp2();
@@ -89,7 +72,7 @@ void setupMpu(void* offsets){
   }
 }
 
-void calibrateMpu(mpuData_t* offsets){
+void calibrateMpu(mpuData_t* offsets, uint32_t timeStep){
   int valsToCal = sizeof(mpuData_t)/sizeof(int16_t);
   // Serial.println(valsToCal);
   int32_t* sum = (int32_t*)calloc(valsToCal, sizeof(int32_t));

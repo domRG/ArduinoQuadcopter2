@@ -4,7 +4,6 @@
 /// Angle controller
 
 #include <MPU6050_DRG.h>
-#include <Wire.h>
 #include <EEPROM.h>
 #include <Servo.h>
 
@@ -27,6 +26,7 @@ Servo bL;
 // throttle 3
 // aux1 4
 // aux2 5
+
 
 #define P_LARGE_CHANGE 0.1
 #define P_SMALL_CHANGE 0.01
@@ -172,27 +172,6 @@ class Pid {
     }
 };
 
-typedef union MpuData {
-  struct Raw {
-    uint8_t pL;
-    uint8_t pH;
-    uint8_t rL;
-    uint8_t rH;
-    uint8_t yL;
-    uint8_t yH;
-  } raw;
-  struct Merged {
-    int16_t p;
-    int16_t r;
-    int16_t y;
-  } merged;
-} mpuData_t;
-
-typedef struct AngleData {
-  float dP;
-  float dR;
-  float dY;
-} angleData_t;
 
 typedef struct RadioData {
   float roll;
@@ -327,7 +306,7 @@ int main() {
   setupMpu(&mpuOffsets);
 
   if (doMpuCal) {
-    calibrateMpu(&mpuOffsets);
+    calibrateMpu(&mpuOffsets, timeStep);
   }
 
   setupThrusters(doThrusterCal);
@@ -399,7 +378,7 @@ int main() {
             
             if (controls.yaw < 40){
               if(controls.throttle > 90 && controls.pitch > 90 && controls.roll < 10){  // calibrate MPU
-                calibrateMpu(&mpuOffsets);
+                calibrateMpu(&mpuOffsets, timeStep);
               }
             }
             else if(controls.yaw > 60) {
