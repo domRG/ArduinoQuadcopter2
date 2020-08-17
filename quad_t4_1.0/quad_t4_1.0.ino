@@ -3,21 +3,24 @@
 /// Custom libraries
 /// Angle controller
 
+bool radioLimitsSet = false;
+
 #include <MPU6050_DRG.h>
+#include <RADIO_DRG.h>
+#include <PID_DRG.h>
 #include <EEPROM.h>
 #include <Servo.h>
 
+Mpu6050 mpu;
+Radio radio;
 Servo fR;
 Servo fL;
 Servo bR;
 Servo bL;
 
-///// ===== Addressbook
+///// ===== EEPROM Addressbook
 //// 0 - 13 = reserved for uint16_t MPU cals  // gpL, gpH, grL, grH, gyL, gyH,( aL, aH, aL, aH, aL, aH, tL, tH)
 //// 14 - 25 = reserved for float (4 bytes) pid values
-#define EEPROM_P_GAIN 14
-#define EEPROM_I_GAIN 18
-#define EEPROM_D_GAIN 22
 
 /// define location 'dictionary'
 // pitch 0
@@ -37,10 +40,10 @@ Servo bL;
 
 // working PID gains[0]: 0.5, 0.0001, 0.01
 // working PID gains[1]: 0.9, 0.0016, 0.03
+// working PID gains[2]: 1.75, 0.0038, 0.32
 
 ///// =====
 
-bool radioLimitsSet = false;
 bool armed = false;
 
 // Adjustable definitions
@@ -57,130 +60,6 @@ float deadZoneSensitivity = 0.1;
 // float pidInputs[4] = {1.4, 0.001, 0.4, 100.0};  // kP, kI, kD, windupLim  // 1.4, 0, 0
 #define PID_I_LIM 100.0
 
-volatile static uint8_t radioNew = 0;
-
-float gyScale = 65.5;
-
-typedef struct PidGains {
-  float p;
-  float i;
-  float d;
-} pidGains_t;
-
-class Pid {
-  private:
-    pidGains_t k;
-    float prev;
-    float iError;
-    float iErrorLim;
-    bool saveToEeprom;
-  public:
-    Pid(float kP = 0.0, float kI = 0.0, float kD = 0.0, float iELim = 250.0, bool saveGains = false, float p = 0.0, float iE = 0.0) {
-      k.p = kP;
-      k.i = kI;
-      k.d = kD;
-      prev = p;
-      iError = iE;
-      iErrorLim = iELim;
-      saveToEeprom = saveGains;
-    }
-
-    float step(float setPoint, float current, float current_filtered) {
-      float dE = current_filtered - prev;
-      prev = current_filtered;
-      float error = setPoint - current;
-      iError += error;
-      if (iError > iErrorLim) {
-        iError = iErrorLim;
-      }
-      else if (iErrorLim < -iErrorLim) {
-        iError = -iErrorLim;
-      }
-
-      return k.p * error + k.i * iError + k.d * dE;
-    }
-
-    float updateKp(float newGain, int incDir = 0) {
-      if (incDir > 0) {
-        k.p += newGain;
-      }
-      else if (incDir < 0) {
-        k.p -= newGain;
-      }
-      else { // incDir == 0
-        k.p = newGain;
-      }
-
-      if (k.p < 0.0) {
-        k.p = 0.0;
-      }
-      
-      if(saveToEeprom){
-        EEPROM.put(EEPROM_P_GAIN, k.p);
-      }
-      
-      return k.p;
-    }
-
-    float updateKi(float newGain, int incDir = 0) {
-      if (incDir > 0) {
-        k.i += newGain;
-      }
-      else if (incDir < 0) {
-        k.i -= newGain;
-      }
-      else { // incDir == 0
-        k.i = newGain;
-      }
-
-      if (k.i < 0.0) {
-        k.i = 0.0;
-      }
-      
-      if(saveToEeprom){
-        EEPROM.put(EEPROM_I_GAIN, k.i);
-      }
-      
-      return k.i;
-    }
-
-    float updateKd(float newGain, int incDir = 0) {
-      if (incDir > 0) {
-        k.d += newGain;
-      }
-      else if (incDir < 0) {
-        k.d -= newGain;
-      }
-      else { // incDir == 0
-        k.d = newGain;
-      }
-
-      if (k.d < 0.0) {
-        k.d = 0.0;
-      }
-      
-      if(saveToEeprom){
-        EEPROM.put(EEPROM_D_GAIN, k.d);
-      }
-      
-      return k.d;
-    }
-
-    void reset() {
-      iError = 0;
-      // prev = 0;  // not required?
-    }
-};
-
-
-typedef struct RadioData {
-  float roll;
-  float throttle;
-  float pitch;
-  float yaw;
-  float auxA;
-  float auxB;
-} radioData_t;
 
 typedef struct ThrusterData {
   float fR = 1000.0;
@@ -265,12 +144,8 @@ int main() {
   uint64_t prevPidTuneTime = 0;
   int pidTuneState = 0;
 
-  mpuData_t mpuData;
-  mpuData_t mpuData_filtered;
-  mpuData_t mpuOffsets;
-
-  angleData_t angles;
-  angleData_t angles_filtered;
+  // angleData_t & angles;
+  // angleData_t & angles_filtered;
   angleData_t setpointAngles;
   radioData_t controls;
   thrusterData_t tSpeeds;
@@ -292,7 +167,7 @@ int main() {
   bool rollSaveGainsToEeprom = !pitchSaveGainsToEeprom;
   Pid pitchPid = Pid(storedGains[0], storedGains[1], storedGains[2], PID_I_LIM, pitchSaveGainsToEeprom);
   Pid rollPid = Pid(storedGains[0], storedGains[1], storedGains[2], PID_I_LIM, rollSaveGainsToEeprom);
-  Pid yawPid = Pid(3, 0.02, 0, PID_I_LIM, false);
+  Pid yawPid = Pid(4, 0.03, 0.1, PID_I_LIM, false);
 
   // 0======================================0
   // |    _____  ______ ______ __  __ ____  |
@@ -302,11 +177,18 @@ int main() {
   // | /____//_____/  /_/   \____//_/       |
   // 0======================================0
 
-  setupRadio();
-  setupMpu(&mpuOffsets);
+  radio.setup(
+          []{radio.ch0Interrupt();},
+          []{radio.ch1Interrupt();},
+          []{radio.ch2Interrupt();},
+          []{radio.ch3Interrupt();},
+          []{radio.ch4Interrupt();},
+          []{radio.ch5Interrupt();}
+          );
+  mpu.setup();
 
   if (doMpuCal) {
-    calibrateMpu(&mpuOffsets, timeStep);
+    mpu.calibrate(timeStep);
   }
 
   setupThrusters(doThrusterCal);
@@ -329,9 +211,9 @@ int main() {
 
 
     // === run radio script as fast as possible
-    if (radioNew) {
-      radioNew &= 0;  // reset flag
-      radioLimitsSet = runRadio(&controls);
+    if (radio.getNew()) {
+      radio.resetNew();  // reset flag
+      radioLimitsSet = radio.run(&controls);
       radioLastUpdate = timeNow;
     }
 
@@ -341,13 +223,8 @@ int main() {
       timePrev += timeDelta;
 
       // poll MPU for new data
-      updateMpuData(&mpuData, &mpuData_filtered, &mpuOffsets);
-
-      // update rate of rotations
-      angles.dP = mpuData.merged.p / gyScale;
-      angles.dR = -mpuData.merged.r / gyScale;
-      angles.dY = mpuData.merged.y / gyScale;
-
+      angleData_t & angles = mpu.getAngles();
+      angleData_t & angles_filtered = mpu.getFilteredAngles();
 
       // === if radio signal in the last 70ms - pulse every 20ms so missed 3 pulses
       if ((timeNow - radioLastUpdate) < 70000 && radioLimitsSet) {
@@ -378,7 +255,7 @@ int main() {
             
             if (controls.yaw < 40){
               if(controls.throttle > 90 && controls.pitch > 90 && controls.roll < 10){  // calibrate MPU
-                calibrateMpu(&mpuOffsets, timeStep);
+                mpu.calibrate(timeStep);
               }
             }
             else if(controls.yaw > 60) {
