@@ -65,6 +65,8 @@ class Mpu6050 {
 		angleData_t angles_filtered;
 		angleData_t angles_baseline;
 	
+		uint32_t timeStep;
+	
 		float gyScale = 65.5;
 	
 		void update();
@@ -74,8 +76,8 @@ class Mpu6050 {
 	
 	public:
 		Mpu6050();
-		void setup();
-		void calibrate(uint32_t timeStep);
+		void setup(bool cal, uint32_t tStep);
+		void calibrate();
 	
 		void waitForNewAngles();
 	

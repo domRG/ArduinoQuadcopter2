@@ -46,7 +46,9 @@ Mpu6050::Mpu6050() {
 	filterDy = FilterChLp2();
 }
 
-void Mpu6050::setup() {
+void Mpu6050::setup(bool cal, uint32_t tStep) {
+	timeStep = tStep;
+	
 	Wire.begin();
 
 	Wire.beginTransmission(MPU_addr);
@@ -69,9 +71,13 @@ void Mpu6050::setup() {
 	Wire.endTransmission(true);
 	
 	readBaselineFromEeprom();
+	
+	if (cal) {
+		calibrate();
+	}
 }
 
-void Mpu6050::calibrate(uint32_t timeStep) {
+void Mpu6050::calibrate() {
 	uint32_t timePrev = 0;
 	for (int samples = 0; samples < mpuCalDelay; ) {
 		uint32_t timeDelta = micros() - timePrev;

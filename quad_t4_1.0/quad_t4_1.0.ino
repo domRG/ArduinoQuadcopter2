@@ -3,6 +3,9 @@
 /// Custom libraries
 /// Angle controller
 
+#define RATE 1000  // rate to define speed of entire controller, MPU takes 834us so max rate is 1190.47619 (timeStep = 840us)
+uint32_t timeStep = (uint32_t)(1000000 / (double)RATE);
+
 bool radioLimitsSet = false;
 
 #include <MPU6050_DRG.h>
@@ -48,8 +51,6 @@ bool armed = false;
 
 // Adjustable definitions
 
-#define RATE 1000  // rate to define speed of entire controller, MPU takes 834us so max rate is 1190.47619 (timeStep = 840us)
-uint32_t timeStep = (uint32_t)(1000000 / (double)RATE);
 bool doMpuCal = false;
 bool doThrusterCal = true;
 float motorLim[2] = {1100.0, 2000.0};
@@ -140,7 +141,6 @@ int main() {
 
   uint64_t timePrev = 0;
   uint8_t printCounter1 = 0;
-  uint8_t printCounter2 = 0;
   uint64_t prevPidTuneTime = 0;
   int pidTuneState = 0;
 
@@ -185,11 +185,8 @@ int main() {
           []{radio.ch4Interrupt();},
           []{radio.ch5Interrupt();}
           );
-  mpu.setup();
-
-  if (doMpuCal) {
-    mpu.calibrate(timeStep);
-  }
+  
+  mpu.setup(doMpuCal, timeStep);
 
   setupThrusters(doThrusterCal);
 
@@ -244,9 +241,6 @@ int main() {
           tSpeeds.bR = limitMotors(baseThrust - pitchAdjust - rollAdjust + yawAdjust);
           tSpeeds.bL = limitMotors(baseThrust - pitchAdjust + rollAdjust - yawAdjust);
 
-          if (printCounter2++ == 0) {
-            // Serialprint(tSpeeds);
-          }
           updateThrusters(&tSpeeds);
         }
         else { // if arm switch not on or limits not set
@@ -255,7 +249,7 @@ int main() {
             
             if (controls.yaw < 40){
               if(controls.throttle > 90 && controls.pitch > 90 && controls.roll < 10){  // calibrate MPU
-                mpu.calibrate(timeStep);
+                mpu.calibrate();
               }
             }
             else if(controls.yaw > 60) {
