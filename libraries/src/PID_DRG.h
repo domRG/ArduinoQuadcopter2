@@ -4,9 +4,6 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 
-#define EEPROM_P_GAIN 14
-#define EEPROM_I_GAIN 18
-#define EEPROM_D_GAIN 22
 
 typedef struct PidGains {
   float p;

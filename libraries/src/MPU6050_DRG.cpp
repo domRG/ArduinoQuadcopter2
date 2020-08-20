@@ -1,4 +1,5 @@
 #include "MPU6050_DRG.h"
+#include "CONSTANTS_DRG.h"
 
 static void add(angleData_t & newData, angleData_t & fillMe);
 
@@ -44,11 +45,13 @@ Mpu6050::Mpu6050() {
 	filterDp = FilterChLp2();
 	filterDr = FilterChLp2();
 	filterDy = FilterChLp2();
+//    angles.p = 0;
+//    angles.r = 0;
+//    angles.y = 0;
 }
 
-void Mpu6050::setup(bool cal, uint32_t tStep) {
-	timeStep = tStep;
-	
+void Mpu6050::setup(bool cal)
+{
 	Wire.begin();
 
 	Wire.beginTransmission(MPU_addr);
@@ -113,23 +116,16 @@ void Mpu6050::calibrate() {
 void Mpu6050::readBaselineFromEeprom()
 {
 	const size_t len = sizeof(float) * 3;
-	uint8_t* toRead = (uint8_t*)calloc(len, 1);
+	uint8_t* toRead = (uint8_t*)(&angles_baseline);
 	for (unsigned int i = 0; i < len; i++) {
 		toRead[i] = EEPROM.read(i);
 	}
-
-	angles_baseline.dR = *(((float*)toRead) + 0);
-	angles_baseline.dR = *(((float*)toRead) + 1);
-	angles_baseline.dY = *(((float*)toRead) + 2);
 }
 
 void Mpu6050::writeBaselineToEeprom() const
 {
 	const size_t len = sizeof(float) * 3;
-	uint8_t* toWrite = (uint8_t*)calloc(len, 1);
-	*(((float*)toWrite) + 0) = angles_baseline.dR;
-	*(((float*)toWrite) + 1) = angles_baseline.dR;
-	*(((float*)toWrite) + 2) = angles_baseline.dY;
+	uint8_t* toWrite = (uint8_t*)(&angles_baseline);
 	for (unsigned int i = 0; i < len; i++) {
 		EEPROM.write(i, toWrite[i]);
 	}
@@ -139,21 +135,30 @@ void Mpu6050::update()
 {
 	//  uint32_t tstart = micros();
 	Wire.beginTransmission(MPU_addr);
-	Wire.write(GYRO_addr);
+	Wire.write(ACC_addr);
 	Wire.endTransmission(false);
-	Wire.requestFrom(MPU_addr, 6, true);
-	while (Wire.available() < 6)
+	Wire.requestFrom(MPU_addr, 14, true);
+	while (Wire.available() < 14)
 	{
-		Serial.println("Waiting for MPU");
+//		Serial.println("Waiting for MPU");
 	}
-	data.raw.pH = Wire.read();
-	data.raw.pL = Wire.read();
-	data.raw.rH = Wire.read();
-	data.raw.rL = Wire.read();
-	data.raw.yH = Wire.read();
-	data.raw.yL = Wire.read();
+    data.raw.ayH = Wire.read();
+    data.raw.ayL = Wire.read();
+    data.raw.axH = Wire.read();
+    data.raw.axL = Wire.read();
+    data.raw.azH = Wire.read();
+    data.raw.azL = Wire.read();
+    data.raw.tH = Wire.read();
+    data.raw.tL = Wire.read();
+    data.raw.gpH = Wire.read();
+	data.raw.gpL = Wire.read();
+	data.raw.grH = Wire.read();
+	data.raw.grL = Wire.read();
+	data.raw.gyH = Wire.read();
+	data.raw.gyL = Wire.read();
 	
-	// Wire.endTransmission(true);  // adds 150us (frees Wire for use by other code - not required)
+//	Serial.printf("%d\t%d\t%d\t%d\t%d\t%d\t%d\n", data.merged.ay, data.merged.ax, data.merged.az, data.merged.t, data.merged.gP, data.merged.gR, data.merged.gY);
+    // Wire.endTransmission(true);  // adds 150us (frees Wire for use by other code - not required)
 }
 
 void Mpu6050::waitForNewAngles()
@@ -161,13 +166,19 @@ void Mpu6050::waitForNewAngles()
 	update();
 	
 	// update rate of rotations
-	angles.dP = data.merged.p / gyScale - angles_baseline.dP;
-	angles.dR = -data.merged.r / gyScale - angles_baseline.dR;
-	angles.dY = data.merged.y / gyScale - angles_baseline.dY;
-	
+	angles.dP = data.merged.gP / gyScale - angles_baseline.dP;
+	angles.dR = -data.merged.gR / gyScale - angles_baseline.dR;
+	angles.dY = data.merged.gY / gyScale - angles_baseline.dY;
+    
 	angles_filtered.dP = filterDp.step(angles.dP);
 	angles_filtered.dR = filterDr.step(angles.dR);
 	angles_filtered.dY = filterDy.step(angles.dY);
+ 
+    
+    angles.aP = atan(-1*data.merged.ax/sqrt(pow(data.merged.ay,2) + pow(data.merged.az,2)))*RAD2DEG;
+    angles.aR = atan(data.merged.ay/sqrt(pow(data.merged.ax,2) + pow(data.merged.az,2)))*RAD2DEG;
+    
+    Serial.printf("%f\t%f\n", angles.aP, angles.aR);
 }
 
 static void add(angleData_t & newData, angleData_t & fillMe)

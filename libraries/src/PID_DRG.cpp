@@ -1,4 +1,5 @@
 #include "PID_DRG.h"
+#include "CONSTANTS_DRG.h"
 
 Pid::Pid(
 		float kP /*= 0.0*/,
@@ -19,11 +20,7 @@ Pid::Pid(
 	saveToEeprom = saveGains;
 }
 
-float Pid::step(
-		float setPoint,
-		float current,
-		float current_filtered
-		)
+float Pid::step(float setPoint, float current, float current_filtered)
 {
 	float dE = current_filtered - prev;
 	prev = current_filtered;
@@ -32,19 +29,18 @@ float Pid::step(
 	if (iError > iErrorLim) {
 		iError = iErrorLim;
 	}
-	else if (iErrorLim < -iErrorLim) {
+	else if (iError < -iErrorLim) {
 		iError = -iErrorLim;
 	}
 
 	return k.p * error + k.i * iError + k.d * dE;
 }
 
-float Pid::updateKp(
-		float newGain,
-		int incDir /*= 0*/
-		)
+float Pid::updateKp(float newGain, int incDir /*= 0*/)
 {
-	if (incDir > 0) {
+	float old = k.p;
+    
+    if (incDir > 0) {
 		k.p += newGain;
 	}
 	else if (incDir < 0) {
@@ -58,19 +54,18 @@ float Pid::updateKp(
 		k.p = 0.0;
 	}
 
-	if(saveToEeprom){
+	if(old != k.p && saveToEeprom){
 		EEPROM.put(EEPROM_P_GAIN, k.p);
+	}
+
+	return k.p;
 }
 
-return k.p;
-}
-
-float Pid::updateKi(
-		float newGain,
-		int incDir /*= 0*/
-		)
+float Pid::updateKi(float newGain,int incDir /*= 0*/)
 {
-	if (incDir > 0) {
+    float old = k.i;
+    
+    if (incDir > 0) {
 		k.i += newGain;
 	}
 	else if (incDir < 0) {
@@ -84,19 +79,18 @@ float Pid::updateKi(
 		k.i = 0.0;
 	}
 
-	if(saveToEeprom){
+	if(old != k.i && saveToEeprom){
 		EEPROM.put(EEPROM_I_GAIN, k.i);
 	}
 
 	return k.i;
 }
 
-float Pid::updateKd(
-		float newGain,
-		int incDir /*= 0*/
-		)
+float Pid::updateKd(float newGain, int incDir /*= 0*/)
 {
-	if (incDir > 0) {
+    float old = k.d;
+    
+    if (incDir > 0) {
 		k.d += newGain;
 	}
 	else if (incDir < 0) {
@@ -110,7 +104,7 @@ float Pid::updateKd(
 		k.d = 0.0;
 	}
 
-	if(saveToEeprom){
+	if(old != k.d && saveToEeprom){
 		EEPROM.put(EEPROM_D_GAIN, k.d);
 	}
 

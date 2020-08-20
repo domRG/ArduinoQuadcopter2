@@ -14,18 +14,30 @@
 
 typedef union MpuData {
 	struct Raw {
-		uint8_t pL;
-		uint8_t pH;
-		uint8_t rL;
-		uint8_t rH;
-		uint8_t yL;
-		uint8_t yH;
+        uint8_t ayL;
+        uint8_t ayH;
+        uint8_t axL;
+        uint8_t axH;
+        uint8_t azL;
+        uint8_t azH;
+        uint8_t tL;
+        uint8_t tH;
+        uint8_t gpL;
+		uint8_t gpH;
+		uint8_t grL;
+		uint8_t grH;
+		uint8_t gyL;
+		uint8_t gyH;
 	}
 	raw;
 	struct Merged {
-		int16_t p;
-		int16_t r;
-		int16_t y;
+        int16_t ay;
+        int16_t ax;
+        int16_t az;
+        int16_t t;
+        int16_t gP;
+		int16_t gR;
+		int16_t gY;
 	}
 	merged;
 }
@@ -35,6 +47,14 @@ typedef struct AngleData {
 	float dP;
 	float dR;
 	float dY;
+    float aY;
+    float aX;
+    float aZ;
+    float aP;
+    float aR;
+    float p;
+    float r;
+    float y;
 }
 angleData_t;
 
@@ -76,7 +96,7 @@ class Mpu6050 {
 	
 	public:
 		Mpu6050();
-		void setup(bool cal, uint32_t tStep);
+		void setup(bool cal);
 		void calibrate();
 	
 		void waitForNewAngles();
