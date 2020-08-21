@@ -22,7 +22,7 @@ void Radio::setup(){
 	}
 	attachInterrupt(digitalPinToInterrupt(ch[0]), (void(*)())&(this->ch0Interrupt), CHANGE);  // 14 = ch6, 15 = ch5, 16 = ch4, 17 = ch3, 20 = ch2, 21 = ch1
 	attachInterrupt(digitalPinToInterrupt(ch[1]), static_cast<void(*)()>(this->ch1Interrupt), CHANGE);  // 14 = ch6, 15 = ch5, 16 = ch4, 17 = ch3, 20 = ch2, 21 = ch1
-	attachInterrupt(digitalPinToInterrupt(ch[2]), (void(*)())std::bind(&Radio::ch2Interrupt,this), CHANGE);  // 14 = ch6, 15 = ch5, 16 = ch4, 17 = ch3, 20 = ch2, 21 = ch1
+	attachInterrupt(digitalPinToInterrupt(ch[2]), (void(*)())std::bind(&Radio::ch2Interrupt,this), CHANGE`);  // 14 = ch6, 15 = ch5, 16 = ch4, 17 = ch3, 20 = ch2, 21 = ch1
 	attachInterrupt(digitalPinToInterrupt(ch[3]), this::ch3Interrupt, CHANGE);  // 14 = ch6, 15 = ch5, 16 = ch4, 17 = ch3, 20 = ch2, 21 = ch1
 	attachInterrupt(digitalPinToInterrupt(ch[4]), ch4Interrupt, CHANGE);  // 14 = ch6, 15 = ch5, 16 = ch4, 17 = ch3, 20 = ch2, 21 = ch1
 	attachInterrupt(digitalPinToInterrupt(ch[5]), ch5Interrupt, CHANGE);  // 14 = ch6, 15 = ch5, 16 = ch4, 17 = ch3, 20 = ch2, 21 = ch1

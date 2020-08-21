@@ -39,17 +39,20 @@ class Controller{
         float thrustLim[2] = {1000.0, 2000.0};
         float motorLim[2] = {1100.0, 2000.0};
         float throttleLim[2] = {1200.0, 1900.0};
-        float controlSensitivity = 75.0;  // 60 - 90 depending
+        float rateSensitivity = 75.0;  // 60 - 90 depending
+        float angleSensitivity = 20.0;
         float deadZoneSensitivity = 0.1;
-        float storedGains[3];
+        float storedGains[6];
         
         uint8_t printCounter1 = 0;
         uint64_t prevPidTuneTime = 0;
         int pidTuneState = 0;
         
-        Pid pitchPid;
-        Pid rollPid;
-        Pid yawPid;
+        Pid pRpid;
+        Pid rRpid;
+        Pid yRpid;
+        Pid pApid;
+        Pid rApid;
         
         thrusterData_t tSpeeds;
         
@@ -62,7 +65,7 @@ class Controller{
     public:
         void setup(bool thrusterCal);
         void run(radioData_t & controls, angleData_t & angles, angleData_t & angles_filtered);
-        void resetPidK();
+        void resetPidK(radioData_t & controls);
         void tunePidK(radioData_t & controls);
         void zeroThrusters();
         void resetPidError();

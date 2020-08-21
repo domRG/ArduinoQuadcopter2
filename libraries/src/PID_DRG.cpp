@@ -6,10 +6,10 @@ Pid::Pid(
 		float kI /*= 0.0*/,
 		float kD /*= 0.0*/,
 		float iELim /*= 250.0*/,
-		bool saveGains /*= false*/,
+		int gainSaveStart /*= -1*/,
 		float p /*= 0.0*/,
 		float iE /*= 0.0*/
-		)
+)
 {
 	k.p = kP;
 	k.i = kI;
@@ -17,7 +17,7 @@ Pid::Pid(
 	prev = p;
 	iError = iE;
 	iErrorLim = iELim;
-	saveToEeprom = saveGains;
+	eepromLocation = gainSaveStart;
 }
 
 float Pid::step(float setPoint, float current, float current_filtered)
@@ -54,8 +54,8 @@ float Pid::updateKp(float newGain, int incDir /*= 0*/)
 		k.p = 0.0;
 	}
 
-	if(old != k.p && saveToEeprom){
-		EEPROM.put(EEPROM_P_GAIN, k.p);
+	if(old != k.p && eepromLocation >= 0){
+		EEPROM.put(eepromLocation + 0 * sizeof(float), k.p);
 	}
 
 	return k.p;
@@ -79,8 +79,8 @@ float Pid::updateKi(float newGain,int incDir /*= 0*/)
 		k.i = 0.0;
 	}
 
-	if(old != k.i && saveToEeprom){
-		EEPROM.put(EEPROM_I_GAIN, k.i);
+	if(old != k.i && eepromLocation >= 0){
+		EEPROM.put(eepromLocation + 1 * sizeof(float), k.i);
 	}
 
 	return k.i;
@@ -104,8 +104,8 @@ float Pid::updateKd(float newGain, int incDir /*= 0*/)
 		k.d = 0.0;
 	}
 
-	if(old != k.d && saveToEeprom){
-		EEPROM.put(EEPROM_D_GAIN, k.d);
+	if(old != k.d && eepromLocation >= 0){
+		EEPROM.put(eepromLocation + 2 * sizeof(float), k.d);
 	}
 
 	return k.d;

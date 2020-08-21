@@ -17,17 +17,17 @@ class Pid {
     float prev;
     float iError;
     float iErrorLim;
-    bool saveToEeprom;
+    int eepromLocation;
   public:
     Pid(
-		float kP = 0.0,
-		float kI = 0.0,
-		float kD = 0.0,
-		float iELim = 250.0,
-		bool saveGains = false,
-		float p = 0.0,
-		float iE = 0.0
-		);
+            float kP = 0.0,
+            float kI = 0.0,
+            float kD = 0.0,
+            float iELim = 250.0,
+            int gainSaveStart = -1,
+            float p = 0.0,
+            float iE = 0.0
+    );
 
     float step(
 		float setPoint,

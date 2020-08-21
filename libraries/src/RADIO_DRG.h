@@ -19,7 +19,8 @@ class Radio {
 		float deltaBalance = 0.85;
 		float deltaMax[6] = {1750, 1750, 1750, 1750, 1750, 1750};
 		float deltaMin[6] = {1250, 1250, 1250, 1250, 1250, 1250};
-		uint16_t limitsSet = 0b0000100000000000;  // bit flags for when limits have been set (channel moved to an extreme value to set edge limits, ie throttleMax) - ch5Max ch5Min ch4Max etc ch0Min - preset ch5Max as this is 'arm' so will sit at min until switched on
+		uint16_t limitsSet = 0b0000111100000000;  // bit flags for when limits have been set (channel moved to an
+        // extreme value to set edge limits, ie throttleMax) - ch5Max ch5Min ch4Max etc ch0Min - bitset '1' for ignore
 		float deadZone = 10.0;
 		uint8_t dropped[6] = {0, 0, 0, 0, 0, 0};
 		float inputPercentages[6] = {0, 0, 0, 0, 0, 0};

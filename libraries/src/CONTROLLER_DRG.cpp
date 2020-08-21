@@ -3,15 +3,15 @@
 
 void Controller::setup(bool doCal)
 {
-    EEPROM.get(EEPROM_P_GAIN, storedGains[0]);
-    EEPROM.get(EEPROM_I_GAIN, storedGains[1]);
-    EEPROM.get(EEPROM_D_GAIN, storedGains[2]);
+    for(int i = 0; i < 6; i++){
+        EEPROM.get(EEPROM_GAINS + i * sizeof(float), storedGains[i]);
+    }
     
-    bool pitchSaveGainsToEeprom = true;
-    bool rollSaveGainsToEeprom = !pitchSaveGainsToEeprom;
-    pitchPid = Pid(storedGains[0], storedGains[1], storedGains[2], pidWindupLim, pitchSaveGainsToEeprom);
-    rollPid = Pid(storedGains[0], storedGains[1], storedGains[2], pidWindupLim, rollSaveGainsToEeprom);
-    yawPid = Pid(4, 0.03, 0.1, pidWindupLim, false);
+    pRpid = Pid(storedGains[0], storedGains[1], storedGains[2], pidWindupLim, EEPROM_GAINS);
+    rRpid = Pid(storedGains[0], storedGains[1], storedGains[2], pidWindupLim, DO_NOT_STORE_GAINS);
+    pApid = Pid(storedGains[3], storedGains[4], storedGains[5], pidWindupLim, EEPROM_ANGLE_GAINS);
+    rApid = Pid(storedGains[3], storedGains[4], storedGains[5], pidWindupLim, DO_NOT_STORE_GAINS);
+    yRpid = Pid(4, 0.03, 0.1, pidWindupLim, false);
     
     fR.attach(2);
     fL.attach(3);
@@ -92,13 +92,26 @@ void Controller::run(radioData_t &controls, angleData_t &angles, angleData_t &an
     angleData_t setpointAngles;
     
     float baseThrust = map(controls.throttle, 0.0, 100.0, throttleLim[0], throttleLim[1]);
-    setpointAngles.dP = mapDeadzone(controls.pitch, 0.0, 100.0, controlSensitivity, -controlSensitivity, deadZoneSensitivity);  // inverted
-    setpointAngles.dR = mapDeadzone(controls.roll, 0.0, 100.0, -controlSensitivity, controlSensitivity, deadZoneSensitivity);
-    setpointAngles.dY = mapDeadzone(controls.yaw, 0.0, 100.0, -controlSensitivity, controlSensitivity, deadZoneSensitivity);
+    setpointAngles.dY = mapDeadzone(controls.yaw, 0.0, 100.0, -rateSensitivity, rateSensitivity, deadZoneSensitivity);
     
-    float pitchAdjust = pitchPid.step(setpointAngles.dP, angles.dP, angles_filtered.dP);
-    float rollAdjust = rollPid.step(setpointAngles.dR, angles.dR, angles_filtered.dP);
-    float yawAdjust = yawPid.step(setpointAngles.dY, angles.dY, angles_filtered.dP);
+    if(controls.auxA > 90.0)
+    {
+        setpointAngles.dP = mapDeadzone(controls.pitch, 0.0, 100.0, rateSensitivity, -rateSensitivity, deadZoneSensitivity);  // inverted
+        setpointAngles.dR = mapDeadzone(controls.roll, 0.0, 100.0, -rateSensitivity, rateSensitivity, deadZoneSensitivity);
+    }
+    else{
+        setpointAngles.p = mapDeadzone(controls.pitch, 0.0, 100.0, angleSensitivity, -angleSensitivity,
+                                       deadZoneSensitivity);  // inverted
+        setpointAngles.r = mapDeadzone(controls.roll, 0.0, 100.0, -angleSensitivity, angleSensitivity,
+                                       deadZoneSensitivity);
+    
+        setpointAngles.dP = pApid.step(setpointAngles.p, angles.p, angles.p);
+        setpointAngles.dR = rApid.step(setpointAngles.r, angles.r, angles.r);
+    }
+    
+    float pitchAdjust = pRpid.step(setpointAngles.dP, angles.dP, angles_filtered.dP);
+    float rollAdjust = rRpid.step(setpointAngles.dR, angles.dR, angles_filtered.dP);
+    float yawAdjust = yRpid.step(setpointAngles.dY, angles.dY, angles_filtered.dP);
     
     tSpeeds.fR = limitMotors(baseThrust + pitchAdjust - rollAdjust - yawAdjust);
     tSpeeds.fL = limitMotors(baseThrust + pitchAdjust + rollAdjust + yawAdjust);
@@ -108,21 +121,35 @@ void Controller::run(radioData_t &controls, angleData_t &angles, angleData_t &an
     updateThrusters(&tSpeeds);
 }
 
-void Controller::resetPidK()
+void Controller::resetPidK(radioData_t & controls)
 {
-    pitchPid.updateKp(0);
-    rollPid.updateKp(0);
-    pitchPid.updateKi(0);
-    rollPid.updateKi(0);
-    pitchPid.updateKd(0);
-    rollPid.updateKd(0);
+    Pid* toTuneP = &pApid;
+    Pid* toTuneR = &rApid;
+    if(controls.auxB > 50.0){
+        toTuneP = &pRpid;
+        toTuneR = &rRpid;
+    }
+    toTuneP->updateKp(0);
+    toTuneR->updateKp(0);
+    toTuneP->updateKi(0);
+    toTuneR->updateKi(0);
+    toTuneP->updateKd(0);
+    toTuneR->updateKd(0);
 }
 
 void Controller::tunePidK(radioData_t & controls)
 {
     if (printCounter1++ == 0) {
-        Serial.print("K{gP,i,d} = "); Serial.print(pitchPid.updateKp(0, 1), 6); Serial.print("\t"); Serial.print(pitchPid.updateKi(0, 1), 6); Serial.print("\t"); Serial.print(pitchPid.updateKd(0, 1), 6);
-        Serial.println();
+        Serial.printf("rK{p,i,d}; aK{p,i,d} = %.4f, %.4f, %.4f; %.4f, %.4f, %.4f\n", pRpid.updateKp(0, 1), pRpid
+                .updateKi(0, 1), pRpid.updateKd(0, 1), pApid.updateKp(0, 1), pApid
+                .updateKi(0, 1), pApid.updateKd(0, 1));
+    }
+    
+    Pid* toTuneP = &pApid;
+    Pid* toTuneR = &rApid;
+    if(controls.auxB > 50.0){
+        toTuneP = &pRpid;
+        toTuneR = &rRpid;
     }
     
     switch (pidTuneState) {
@@ -143,26 +170,26 @@ void Controller::tunePidK(radioData_t & controls)
         case 1:
             
             if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                pitchPid.updateKp(P_SMALL_CHANGE, 1);
-                rollPid.updateKp(P_SMALL_CHANGE, 1);
+                toTuneP->updateKp(P_SMALL_CHANGE, 1);
+                toTuneR->updateKp(P_SMALL_CHANGE, 1);
                 prevPidTuneTime = millis();
                 pidTuneState = -1;
             }
             else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                pitchPid.updateKp(P_SMALL_CHANGE, -1);
-                rollPid.updateKp(P_SMALL_CHANGE, -1);
+                toTuneP->updateKp(P_SMALL_CHANGE, -1);
+                toTuneR->updateKp(P_SMALL_CHANGE, -1);
                 prevPidTuneTime = millis();
                 pidTuneState = -1;
             }
             else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                pitchPid.updateKp(P_LARGE_CHANGE, 1);
-                rollPid.updateKp(P_LARGE_CHANGE, 1);
+                toTuneP->updateKp(P_LARGE_CHANGE, 1);
+                toTuneR->updateKp(P_LARGE_CHANGE, 1);
                 prevPidTuneTime = millis();
                 pidTuneState = -1;
             }
             else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                pitchPid.updateKp(P_LARGE_CHANGE, -1);
-                rollPid.updateKp(P_LARGE_CHANGE, -1);
+                toTuneP->updateKp(P_LARGE_CHANGE, -1);
+                toTuneR->updateKp(P_LARGE_CHANGE, -1);
                 prevPidTuneTime = millis();
                 pidTuneState = -1;
             }
@@ -175,26 +202,26 @@ void Controller::tunePidK(radioData_t & controls)
         case 2:
             
             if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                pitchPid.updateKi(I_SMALL_CHANGE, 1);
-                rollPid.updateKi(I_SMALL_CHANGE, 1);
+                toTuneP->updateKi(I_SMALL_CHANGE, 1);
+                toTuneR->updateKi(I_SMALL_CHANGE, 1);
                 prevPidTuneTime = millis();
                 pidTuneState = -1;
             }
             else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                pitchPid.updateKi(I_SMALL_CHANGE, -1);
-                rollPid.updateKi(I_SMALL_CHANGE, -1);
+                toTuneP->updateKi(I_SMALL_CHANGE, -1);
+                toTuneR->updateKi(I_SMALL_CHANGE, -1);
                 prevPidTuneTime = millis();
                 pidTuneState = -1;
             }
             else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                pitchPid.updateKi(I_LARGE_CHANGE, 1);
-                rollPid.updateKi(I_LARGE_CHANGE, 1);
+                toTuneP->updateKi(I_LARGE_CHANGE, 1);
+                toTuneR->updateKi(I_LARGE_CHANGE, 1);
                 prevPidTuneTime = millis();
                 pidTuneState = -1;
             }
             else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                pitchPid.updateKi(I_LARGE_CHANGE, -1);
-                rollPid.updateKi(I_LARGE_CHANGE, -1);
+                toTuneP->updateKi(I_LARGE_CHANGE, -1);
+                toTuneR->updateKi(I_LARGE_CHANGE, -1);
                 prevPidTuneTime = millis();
                 pidTuneState = -1;
             }
@@ -207,26 +234,26 @@ void Controller::tunePidK(radioData_t & controls)
         case 3:
             
             if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                pitchPid.updateKd(D_SMALL_CHANGE, 1);
-                rollPid.updateKd(D_SMALL_CHANGE, 1);
+                toTuneP->updateKd(D_SMALL_CHANGE, 1);
+                toTuneR->updateKd(D_SMALL_CHANGE, 1);
                 prevPidTuneTime = millis();
                 pidTuneState = -1;
             }
             else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                pitchPid.updateKd(D_SMALL_CHANGE, -1);
-                rollPid.updateKd(D_SMALL_CHANGE, -1);
+                toTuneP->updateKd(D_SMALL_CHANGE, -1);
+                toTuneR->updateKd(D_SMALL_CHANGE, -1);
                 prevPidTuneTime = millis();
                 pidTuneState = -1;
             }
             else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                pitchPid.updateKd(D_LARGE_CHANGE, 1);
-                rollPid.updateKd(D_LARGE_CHANGE, 1);
+                toTuneP->updateKd(D_LARGE_CHANGE, 1);
+                toTuneR->updateKd(D_LARGE_CHANGE, 1);
                 prevPidTuneTime = millis();
                 pidTuneState = -1;
             }
             else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                pitchPid.updateKd(D_LARGE_CHANGE, -1);
-                rollPid.updateKd(D_LARGE_CHANGE, -1);
+                toTuneP->updateKd(D_LARGE_CHANGE, -1);
+                toTuneR->updateKd(D_LARGE_CHANGE, -1);
                 prevPidTuneTime = millis();
                 pidTuneState = -1;
             }
@@ -254,7 +281,7 @@ void Controller::zeroThrusters()
 
 void Controller::resetPidError()
 {
-    pitchPid.reset();
-    rollPid.reset();
-    yawPid.reset();
+    pRpid.reset();
+    rRpid.reset();
+    yRpid.reset();
 }

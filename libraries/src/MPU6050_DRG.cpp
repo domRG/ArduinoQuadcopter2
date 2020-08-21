@@ -2,6 +2,7 @@
 #include "CONSTANTS_DRG.h"
 
 static void add(angleData_t & newData, angleData_t & fillMe);
+static void divide(angleData_t & divideThis, float byThis);
 
 //Low pass butterworth filter order=2 alpha1=0.12   -----   http://www.schwietering.com/jayduino/filtuino/index.php?characteristic=bu&passmode=lp&order=2&usesr=usesr&sr=250&frequencyLow=30&noteLow=&noteHigh=&pw=pw&calctype=long&bitres=16&run=Send
 FilterBuLp2::FilterBuLp2() {
@@ -95,27 +96,32 @@ void Mpu6050::calibrate() {
 	Serial.println();
 	Serial.print("Recording average offset:");
 	
-	for (int samples = 0; samples < mpuCalSamples; ) {
+    angleData_t angleSum;
+	
+    for (int samples = 0; samples < mpuCalSamples; ) {
 		uint32_t timeDelta = micros() - timePrev;
 		if (timeDelta >= timeStep) {
 			timePrev += timeDelta;
 			waitForNewAngles();
-			if (((samples++) & 0xFF) == 0) {
+			add(angles, angleSum);
+            if (((samples++) & 0xFF) == 0) {
 				Serial.print(".");
 			}
 		}
 	}
-
+    
+    divide(angleSum, mpuCalSamples);
+    
 	Serial.println();
 	Serial.print("Recording complete");
 	
-	add(angles_filtered, angles_baseline);
+	add(angleSum, angles_baseline);
 	writeBaselineToEeprom();
 }
 
 void Mpu6050::readBaselineFromEeprom()
 {
-	const size_t len = sizeof(float) * 3;
+	const size_t len = sizeof(angleData_t);
 	uint8_t* toRead = (uint8_t*)(&angles_baseline);
 	for (unsigned int i = 0; i < len; i++) {
 		toRead[i] = EEPROM.read(i);
@@ -124,7 +130,7 @@ void Mpu6050::readBaselineFromEeprom()
 
 void Mpu6050::writeBaselineToEeprom() const
 {
-	const size_t len = sizeof(float) * 3;
+	const size_t len = sizeof(angleData_t);
 	uint8_t* toWrite = (uint8_t*)(&angles_baseline);
 	for (unsigned int i = 0; i < len; i++) {
 		EEPROM.write(i, toWrite[i]);
@@ -175,15 +181,51 @@ void Mpu6050::waitForNewAngles()
 	angles_filtered.dY = filterDy.step(angles.dY);
  
     
-    angles.aP = atan(-1*data.merged.ax/sqrt(pow(data.merged.ay,2) + pow(data.merged.az,2)))*RAD2DEG;
-    angles.aR = atan(data.merged.ay/sqrt(pow(data.merged.ax,2) + pow(data.merged.az,2)))*RAD2DEG;
+    angles.aP = atan(-1*data.merged.ax/sqrt(pow(data.merged.ay,2) + pow(data.merged.az,2)))*RAD2DEG - angles_baseline.aP;
+    angles.aR = atan(data.merged.ay/sqrt(pow(data.merged.ax,2) + pow(data.merged.az,2)))*RAD2DEG - angles_baseline.aR;
     
-    Serial.printf("%f\t%f\n", angles.aP, angles.aR);
+    angles.p = gyAcMix * (angles.p + angles.dP * 0.001) + (1 - gyAcMix) * (angles.aP);
+    angles.r = gyAcMix * (angles.r + angles.dR * 0.001) + (1 - gyAcMix) * (angles.aR);
+    angles.y = (angles.y + angles.dY * 0.001);
+    
+    //    Serial.printf("P:%f\tR:%f\tY:%f\n", angles.p, angles.r, angles.y);
+    // Complementary filter demo:
+    /*
+    static float gyP = 0;
+    gyP += angles.dP * 0.001;
+    static uint8_t counter = 0;
+    if (((counter++) & 0b11) == 0) {
+        Serial.printf("-Gy:%f\t-Ac:%f\t-Mix:%f\n", gyP, angles.aP, angles.p);
+    }
+    */
 }
 
 static void add(angleData_t & newData, angleData_t & fillMe)
 {
-	fillMe.dP += newData.dP;
-	fillMe.dR += newData.dR;
-	fillMe.dY += newData.dY;
+    fillMe.dP += newData.dP;
+    fillMe.dR += newData.dR;
+    fillMe.dY += newData.dY;
+    fillMe.aY += newData.aY;
+    fillMe.aX += newData.aX;
+    fillMe.aZ += newData.aZ;
+    fillMe.aP += newData.aP;
+    fillMe.aR += newData.aR;
+    fillMe.p += newData.p;
+    fillMe.r += newData.r;
+    fillMe.y += newData.y;
+}
+
+static void divide(angleData_t & divideThis, float byThis)
+{
+    divideThis.dP /= byThis;
+    divideThis.dR /= byThis;
+    divideThis.dY /= byThis;
+    divideThis.aY /= byThis;
+    divideThis.aX /= byThis;
+    divideThis.aZ /= byThis;
+    divideThis.aP /= byThis;
+    divideThis.aR /= byThis;
+    divideThis.p /= byThis;
+    divideThis.r /= byThis;
+    divideThis.y /= byThis;
 }
