@@ -12,6 +12,6 @@ const uint32_t timeStep = (uint32_t)(1000000 / (double)RATE);
 #define RAD2DEG 57.29577951308232087679815481410517
 #define DEG2RAD 0.017453292519943295769236907684886
 
-#define gyAcMix 0.98
+#define gyAcMix 0.99
 
 #endif //__EEPROM_DRG_H

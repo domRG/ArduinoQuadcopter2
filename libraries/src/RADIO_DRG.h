@@ -4,12 +4,12 @@
 #include <Arduino.h>
 
 typedef struct RadioData {
-  float roll;
-  float throttle;
-  float pitch;
-  float yaw;
-  float auxA;
-  float auxB;
+  float roll = 0;
+  float throttle = 0;
+  float pitch = 0;
+  float yaw = 0;
+  bool auxA = 0;
+  bool auxB = 0;
 } radioData_t;
 
 class Radio {
@@ -41,6 +41,8 @@ class Radio {
 		void ch5Interrupt(void);
 		uint8_t getNew();
 		void resetNew();
+        
+        bool isOkToArm();
 };
 
 

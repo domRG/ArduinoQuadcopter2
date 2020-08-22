@@ -34,17 +34,27 @@ Controller controller;
 bool armed = false;
 
 bool doMpuCal = false;
-bool doThrusterCal = true;
+bool doThrusterCal = false;
 
+uint64_t radioLastUpdate = 0;  
+radioData_t controls;
+int runState = 0;
+float auxASwPrev = 0;
+float auxBSwPrev = 0;
+
+uint64_t timeNow;
+
+int runRunState();
+
+static void updateRunState(int newState) {
+  runState = newState;
+  auxASwPrev = controls.auxA;
+  auxBSwPrev = controls.auxB;
+}
 
 int main() {
 
   uint64_t timePrev = 0;
-  uint64_t radioLastUpdate = 0;  
-  radioData_t controls;
-  int runState = 0;
-  float auxASwPrev = 0;
-  float auxBSwPrev = 0;
 
   controller.setup(doThrusterCal);  // must be done first - servos start at power-on!
   mpu.setup(doMpuCal);
@@ -54,7 +64,7 @@ int main() {
   while (1) { // run loop
 
     // === time keeping
-    uint64_t timeNow = micros();
+    timeNow = micros();
     uint32_t timeDelta = timeNow - timePrev;
 
 
@@ -72,72 +82,56 @@ int main() {
 
       // poll MPU for new data
       mpu.waitForNewAngles();
-      angleData_t & angles = mpu.getAngles();
-      angleData_t & angles_filtered = mpu.getFilteredAngles();
 
-      switch(runState){
-        case 0:  // off
-          controller.zeroThrusters();
-          controller.resetPidError();
-          if(radioLimitsSet && abs(controls.pitch - 50.0) < 10.0 && abs(controls.roll - 50.0) < 10.0 && (timeNow - radioLastUpdate) < 70000){
-            if(controls.auxA < 10.0 && controls.throttle < 5.0 && controls.auxB > 90.0 && auxBSwPrev < 10.0){
-              runState = 2;
-            }
-
-            if(auxASwPrev < 10.0 && controls.auxA > 90.0 && controls.auxB < 10.0){
-              runState = 1;
-            }
-            
-          }
-          auxASwPrev = controls.auxA;
-          auxBSwPrev = controls.auxB;
-          break;
-        case 1:  // tuning
-
-          if(controls.auxA < 10.0){
-            runState = 0;
-            break;
-          }
-          
-          if (controls.yaw < 40.0){
-            if(controls.throttle > 90.0 && controls.pitch > 90.0 && controls.roll < 10.0){  // calibrate MPU
-               mpu.calibrate();
-            }
-          }
-          else if(controls.yaw > 60.0) {
-            if(controls.throttle < 10.0 && controls.pitch < 10.0 && controls.roll > 90.0){  // reset all stored PID values to 0
-               controller.resetPidK(controls);
-            }
-          }
-          else{
-            
-            // tune:
-            //  pitch up - increase a little bit
-            //  pitch down - decrease a little bit
-            //  roll right (up) - increase more
-            //  roll left (down) - decrease more
-            controller.tunePidK(controls);
-          }
-
-          break;
-        case 2:  // running
-          if(controls.auxB < 90.0 || (timeNow - radioLastUpdate) > 70000){
-            runState = 0;
-            auxASwPrev = controls.auxA;
-            auxBSwPrev = controls.auxB;
-            break;
-          }
-          
-          controller.run(controls, angles, angles_filtered);
-          
-          break;
-        default:
-          controller.zeroThrusters();
-          controller.resetPidError();
-          runState = 0;
-          Serial.println("PANIC ;P");
-          break;
-      }
+//      Serial.printf("%d\t%f\t%f\t%f\t%f\t0\t100\n",runState*40,controls.auxA,auxASwPrev,controls.auxB,auxBSwPrev);
+      updateRunState(runRunState());
     }
   }
+}
+
+int runRunState(){
+  switch(runState){
+    case 0:  // off
+      armed = false;
+      controller.zeroThrusters();
+      controller.resetPidError();
+      return controls.auxA ? (controls.auxB ? 2 : 1) : (controls.auxB ? 3 : 0);
+    case 1:  // tune angle
+      if(controller.tuneAngle(controls)){
+        mpu.calibrate();
+      }
+      return controls.auxA ? (controls.auxB ? 2 : 1) : (controls.auxB ? -1 : 0);
+    case 2:  // tune rate
+      if(controller.tuneRate(controls)){
+        mpu.calibrate();
+      }
+      return controls.auxA ? (controls.auxB ? 2 : 1) : (controls.auxB ? -1 : 0);
+    case 3:  // fly angle
+      if (armed)
+      {
+        controller.runAngle(controls, mpu.getAngles(), mpu.getFilteredAngles());
+      } else {
+        armed = radio.isOkToArm();
+      }
+      return controls.auxA ? (controls.auxB ? 4 : -2) : (controls.auxB ? 3 : 0);
+    case 4:  // fly rate
+      if (armed)
+      {
+        controller.runRate(controls, mpu.getAngles(), mpu.getFilteredAngles());
+      } else {
+        armed = radio.isOkToArm();
+      }
+      return controls.auxA ? (controls.auxB ? 4 : -2) : (controls.auxB ? 3 : 0);
+    case -1:  // lock
+    case -2:  // lock
+    case -3:  // lock
+      armed = false;
+      controller.zeroThrusters();
+      controller.resetPidError();
+      return controls.auxA ? (controls.auxB ? -3 : -2) : (controls.auxB ? -1 : 0);
+    default:
+      Serial.printf("PANIC X0 %d\n", runState);
+      return 0;
+  }
+  return runState;
 }

@@ -44,19 +44,18 @@ typedef union MpuData {
 mpuData_t;
 
 typedef struct AngleData {
-	float dP;
-	float dR;
-	float dY;
-    float aY;
-    float aX;
-    float aZ;
-    float aP;
-    float aR;
-    float p;
-    float r;
-    float y;
-}
-angleData_t;
+	float dP = 0;
+	float dR = 0;
+	float dY = 0;
+    float aY = 0;
+    float aX = 0;
+    float aZ = 0;
+    float aP = 0;
+    float aR = 0;
+    float p = 0;
+    float r = 0;
+    float y = 0;
+} angleData_t;
 
 class FilterBuLp2 {
 	private:
@@ -78,7 +77,10 @@ class Mpu6050 {
 	private:
 		FilterChLp2 filterDp;
 		FilterChLp2 filterDr;
-		FilterChLp2 filterDy;
+        FilterChLp2 filterDy;
+        FilterChLp2 filterAx;
+        FilterChLp2 filterAy;
+        FilterChLp2 filterAz;
 		mpuData_t data;
 	
 		angleData_t angles;
@@ -86,18 +88,19 @@ class Mpu6050 {
 		angleData_t angles_baseline;
 	
 		uint32_t timeStep;
+        uint32_t counter;
 	
 		float gyScale = 65.5;
-	
-		void update();
 	
 		void readBaselineFromEeprom();
 		void writeBaselineToEeprom() const;
 	
 	public:
 		Mpu6050();
+  
 		void setup(bool cal);
 		void calibrate();
+        void update();
 	
 		void waitForNewAngles();
 	
@@ -107,6 +110,10 @@ class Mpu6050 {
 		inline angleData_t & getFilteredAngles() {
 			return angles_filtered;
 		}
+        
+        inline uint32_t getCounter(){
+            return counter;
+        }
 	
 	
 };

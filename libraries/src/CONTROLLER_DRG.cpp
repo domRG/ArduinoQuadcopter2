@@ -30,12 +30,16 @@ void Controller::setup(bool doCal)
     bL.writeMicroseconds((int)thrustLim[0]);
 }
 
-void Controller::updateThrusters(thrusterData_t *speeds)
+void Controller::updateThrusters(thrusterData_t & speeds)
 {
-    fR.writeMicroseconds((int)speeds->fR);
-    fL.writeMicroseconds((int)speeds->fL);
-    bR.writeMicroseconds((int)speeds->bR);
-    bL.writeMicroseconds((int)speeds->bL);
+//    static uint8_t counter = 0;
+//    if(counter++ == 0){
+//        Serial.printf("%f\t%f\t%f\t%f\n", speeds.fR, speeds.fL, speeds.bR, speeds.bL);
+//    }
+    fR.writeMicroseconds((int)speeds.fR);
+    fL.writeMicroseconds((int)speeds.fL);
+    bR.writeMicroseconds((int)speeds.bR);
+    bL.writeMicroseconds((int)speeds.bL);
 }
 
 float Controller::mapDeadzone(float x, float iL, float iH, float oL, float oH, float dzSf)
@@ -87,27 +91,32 @@ float Controller::map(float x, float in_min, float in_max, float out_min, float 
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-void Controller::run(radioData_t &controls, angleData_t &angles, angleData_t &angles_filtered)
-{
+void Controller::runRate(radioData_t &controls, angleData_t &angles, angleData_t &angles_filtered){
     angleData_t setpointAngles;
+    setpointAngles.dP = mapDeadzone(controls.pitch, 0.0, 100.0, rateSensitivity, -rateSensitivity, deadZoneSensitivity);  // inverted
+    setpointAngles.dR = mapDeadzone(controls.roll, 0.0, 100.0, -rateSensitivity, rateSensitivity, deadZoneSensitivity);
+    
+    run(controls, angles, angles_filtered, setpointAngles);
+}
+
+void Controller::runAngle(radioData_t &controls, angleData_t &angles, angleData_t &angles_filtered){
+    angleData_t setpointAngles;
+    setpointAngles.p = mapDeadzone(controls.pitch, 0.0, 100.0, angleSensitivity, -angleSensitivity,
+                                   deadZoneSensitivity);  // inverted
+    setpointAngles.r = mapDeadzone(controls.roll, 0.0, 100.0, -angleSensitivity, angleSensitivity,
+                                   deadZoneSensitivity);
+    
+    setpointAngles.dP = pApid.step(setpointAngles.p, angles.p, angles.p);
+    setpointAngles.dR = rApid.step(setpointAngles.r, angles.r, angles.r);
+    
+    run(controls, angles, angles_filtered, setpointAngles);
+}
+
+void Controller::run(radioData_t &controls, angleData_t &angles, angleData_t &angles_filtered, angleData_t & setpointAngles)
+{
     
     float baseThrust = map(controls.throttle, 0.0, 100.0, throttleLim[0], throttleLim[1]);
     setpointAngles.dY = mapDeadzone(controls.yaw, 0.0, 100.0, -rateSensitivity, rateSensitivity, deadZoneSensitivity);
-    
-    if(controls.auxA > 90.0)
-    {
-        setpointAngles.dP = mapDeadzone(controls.pitch, 0.0, 100.0, rateSensitivity, -rateSensitivity, deadZoneSensitivity);  // inverted
-        setpointAngles.dR = mapDeadzone(controls.roll, 0.0, 100.0, -rateSensitivity, rateSensitivity, deadZoneSensitivity);
-    }
-    else{
-        setpointAngles.p = mapDeadzone(controls.pitch, 0.0, 100.0, angleSensitivity, -angleSensitivity,
-                                       deadZoneSensitivity);  // inverted
-        setpointAngles.r = mapDeadzone(controls.roll, 0.0, 100.0, -angleSensitivity, angleSensitivity,
-                                       deadZoneSensitivity);
-    
-        setpointAngles.dP = pApid.step(setpointAngles.p, angles.p, angles.p);
-        setpointAngles.dR = rApid.step(setpointAngles.r, angles.r, angles.r);
-    }
     
     float pitchAdjust = pRpid.step(setpointAngles.dP, angles.dP, angles_filtered.dP);
     float rollAdjust = rRpid.step(setpointAngles.dR, angles.dR, angles_filtered.dP);
@@ -118,165 +127,186 @@ void Controller::run(radioData_t &controls, angleData_t &angles, angleData_t &an
     tSpeeds.bR = limitMotors(baseThrust - pitchAdjust - rollAdjust + yawAdjust);
     tSpeeds.bL = limitMotors(baseThrust - pitchAdjust + rollAdjust - yawAdjust);
     
-    updateThrusters(&tSpeeds);
+    updateThrusters(tSpeeds);
 }
 
-void Controller::resetPidK(radioData_t & controls)
+bool Controller::tuneRate(radioData_t & controls)
 {
-    Pid* toTuneP = &pApid;
-    Pid* toTuneR = &rApid;
-    if(controls.auxB > 50.0){
-        toTuneP = &pRpid;
-        toTuneR = &rRpid;
-    }
-    toTuneP->updateKp(0);
-    toTuneR->updateKp(0);
-    toTuneP->updateKi(0);
-    toTuneR->updateKi(0);
-    toTuneP->updateKd(0);
-    toTuneR->updateKd(0);
+    return tunePidK(controls, &pRpid, &rRpid);
 }
 
-void Controller::tunePidK(radioData_t & controls)
+bool Controller::tuneAngle(radioData_t & controls)
+{
+    return tunePidK(controls, &pApid, &rApid);
+}
+
+bool Controller::tunePidK(radioData_t & controls, Pid * toTuneP, Pid * toTuneR)
 {
     if (printCounter1++ == 0) {
         Serial.printf("rK{p,i,d}; aK{p,i,d} = %.4f, %.4f, %.4f; %.4f, %.4f, %.4f\n", pRpid.updateKp(0, 1), pRpid
                 .updateKi(0, 1), pRpid.updateKd(0, 1), pApid.updateKp(0, 1), pApid
                 .updateKi(0, 1), pApid.updateKd(0, 1));
     }
-    
-    Pid* toTuneP = &pApid;
-    Pid* toTuneR = &rApid;
-    if(controls.auxB > 50.0){
-        toTuneP = &pRpid;
-        toTuneR = &rRpid;
+    if(controls.yaw < 40.0) {
+        return (controls.throttle > 80.0 && controls.pitch > 80.0 && controls.roll < 20.0);
     }
-    
-    switch (pidTuneState) {
-        case 0:
-            
-            if (controls.throttle > 66.6) {  // tune gP
-                pidTuneState = 1;
-            }
-            else if (controls.throttle > 33.3) {  // tune i
-                pidTuneState = 2;
-            }
-            else {
-                pidTuneState = 3;
-            }
-            
-            break;
-        
-        case 1:
-            
-            if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                toTuneP->updateKp(P_SMALL_CHANGE, 1);
-                toTuneR->updateKp(P_SMALL_CHANGE, 1);
-                prevPidTuneTime = millis();
-                pidTuneState = -1;
-            }
-            else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                toTuneP->updateKp(P_SMALL_CHANGE, -1);
-                toTuneR->updateKp(P_SMALL_CHANGE, -1);
-                prevPidTuneTime = millis();
-                pidTuneState = -1;
-            }
-            else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                toTuneP->updateKp(P_LARGE_CHANGE, 1);
-                toTuneR->updateKp(P_LARGE_CHANGE, 1);
-                prevPidTuneTime = millis();
-                pidTuneState = -1;
-            }
-            else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                toTuneP->updateKp(P_LARGE_CHANGE, -1);
-                toTuneR->updateKp(P_LARGE_CHANGE, -1);
-                prevPidTuneTime = millis();
-                pidTuneState = -1;
-            }
-            else {
-                pidTuneState = 0;
-            }
-            
-            break;
-        
-        case 2:
-            
-            if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                toTuneP->updateKi(I_SMALL_CHANGE, 1);
-                toTuneR->updateKi(I_SMALL_CHANGE, 1);
-                prevPidTuneTime = millis();
-                pidTuneState = -1;
-            }
-            else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                toTuneP->updateKi(I_SMALL_CHANGE, -1);
-                toTuneR->updateKi(I_SMALL_CHANGE, -1);
-                prevPidTuneTime = millis();
-                pidTuneState = -1;
-            }
-            else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                toTuneP->updateKi(I_LARGE_CHANGE, 1);
-                toTuneR->updateKi(I_LARGE_CHANGE, 1);
-                prevPidTuneTime = millis();
-                pidTuneState = -1;
-            }
-            else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                toTuneP->updateKi(I_LARGE_CHANGE, -1);
-                toTuneR->updateKi(I_LARGE_CHANGE, -1);
-                prevPidTuneTime = millis();
-                pidTuneState = -1;
-            }
-            else {
-                pidTuneState = 0;
-            }
-            
-            break;
-        
-        case 3:
-            
-            if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                toTuneP->updateKd(D_SMALL_CHANGE, 1);
-                toTuneR->updateKd(D_SMALL_CHANGE, 1);
-                prevPidTuneTime = millis();
-                pidTuneState = -1;
-            }
-            else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                toTuneP->updateKd(D_SMALL_CHANGE, -1);
-                toTuneR->updateKd(D_SMALL_CHANGE, -1);
-                prevPidTuneTime = millis();
-                pidTuneState = -1;
-            }
-            else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50) {
-                toTuneP->updateKd(D_LARGE_CHANGE, 1);
-                toTuneR->updateKd(D_LARGE_CHANGE, 1);
-                prevPidTuneTime = millis();
-                pidTuneState = -1;
-            }
-            else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50) {
-                toTuneP->updateKd(D_LARGE_CHANGE, -1);
-                toTuneR->updateKd(D_LARGE_CHANGE, -1);
-                prevPidTuneTime = millis();
-                pidTuneState = -1;
-            }
-            else {
-                pidTuneState = 0;
-            }
-            
-            break;
-        
-        case -1:  // waiting for pitch/roll to centre
-            
-            if (controls.pitch > 40 && controls.pitch < 60 && controls.roll > 40 && controls.roll < 60) {
-                pidTuneState = 0;
-            }
-            
-            break;
+    else if(controls.yaw > 60.0) {
+        if(controls.throttle < 20.0 && controls.pitch < 20.0 && controls.roll > 80.0){
+            toTuneP->updateKp(0);
+            toTuneR->updateKp(0);
+            toTuneP->updateKi(0);
+            toTuneR->updateKi(0);
+            toTuneP->updateKd(0);
+            toTuneR->updateKd(0);
+        }
     }
+    else {
+        switch (pidTuneState) {
+            case 0:
+            
+                if (controls.throttle > 66.6)
+                {  // tune gP
+                    pidTuneState = 1;
+                }
+                else if (controls.throttle > 33.3)
+                {  // tune i
+                    pidTuneState = 2;
+                }
+                else
+                {
+                    pidTuneState = 3;
+                }
+            
+                break;
+        
+            case 1:
+            
+                if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50)
+                {
+                    toTuneP->updateKp(P_SMALL_CHANGE, 1);
+                    toTuneR->updateKp(P_SMALL_CHANGE, 1);
+                    prevPidTuneTime = millis();
+                    pidTuneState = -1;
+                }
+                else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50)
+                {
+                    toTuneP->updateKp(P_SMALL_CHANGE, -1);
+                    toTuneR->updateKp(P_SMALL_CHANGE, -1);
+                    prevPidTuneTime = millis();
+                    pidTuneState = -1;
+                }
+                else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50)
+                {
+                    toTuneP->updateKp(P_LARGE_CHANGE, 1);
+                    toTuneR->updateKp(P_LARGE_CHANGE, 1);
+                    prevPidTuneTime = millis();
+                    pidTuneState = -1;
+                }
+                else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50)
+                {
+                    toTuneP->updateKp(P_LARGE_CHANGE, -1);
+                    toTuneR->updateKp(P_LARGE_CHANGE, -1);
+                    prevPidTuneTime = millis();
+                    pidTuneState = -1;
+                }
+                else
+                {
+                    pidTuneState = 0;
+                }
+            
+                break;
+        
+            case 2:
+            
+                if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50)
+                {
+                    toTuneP->updateKi(I_SMALL_CHANGE, 1);
+                    toTuneR->updateKi(I_SMALL_CHANGE, 1);
+                    prevPidTuneTime = millis();
+                    pidTuneState = -1;
+                }
+                else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50)
+                {
+                    toTuneP->updateKi(I_SMALL_CHANGE, -1);
+                    toTuneR->updateKi(I_SMALL_CHANGE, -1);
+                    prevPidTuneTime = millis();
+                    pidTuneState = -1;
+                }
+                else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50)
+                {
+                    toTuneP->updateKi(I_LARGE_CHANGE, 1);
+                    toTuneR->updateKi(I_LARGE_CHANGE, 1);
+                    prevPidTuneTime = millis();
+                    pidTuneState = -1;
+                }
+                else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50)
+                {
+                    toTuneP->updateKi(I_LARGE_CHANGE, -1);
+                    toTuneR->updateKi(I_LARGE_CHANGE, -1);
+                    prevPidTuneTime = millis();
+                    pidTuneState = -1;
+                }
+                else
+                {
+                    pidTuneState = 0;
+                }
+            
+                break;
+        
+            case 3:
+            
+                if (controls.pitch > 75.0 && (millis() - prevPidTuneTime) > 50)
+                {
+                    toTuneP->updateKd(D_SMALL_CHANGE, 1);
+                    toTuneR->updateKd(D_SMALL_CHANGE, 1);
+                    prevPidTuneTime = millis();
+                    pidTuneState = -1;
+                }
+                else if (controls.pitch < 25.0 && (millis() - prevPidTuneTime) > 50)
+                {
+                    toTuneP->updateKd(D_SMALL_CHANGE, -1);
+                    toTuneR->updateKd(D_SMALL_CHANGE, -1);
+                    prevPidTuneTime = millis();
+                    pidTuneState = -1;
+                }
+                else if (controls.roll > 75.0 && (millis() - prevPidTuneTime) > 50)
+                {
+                    toTuneP->updateKd(D_LARGE_CHANGE, 1);
+                    toTuneR->updateKd(D_LARGE_CHANGE, 1);
+                    prevPidTuneTime = millis();
+                    pidTuneState = -1;
+                }
+                else if (controls.roll < 25.0 && (millis() - prevPidTuneTime) > 50)
+                {
+                    toTuneP->updateKd(D_LARGE_CHANGE, -1);
+                    toTuneR->updateKd(D_LARGE_CHANGE, -1);
+                    prevPidTuneTime = millis();
+                    pidTuneState = -1;
+                }
+                else
+                {
+                    pidTuneState = 0;
+                }
+            
+                break;
+        
+            case -1:  // waiting for pitch/roll to centre
+            
+                if (controls.pitch > 40 && controls.pitch < 60 && controls.roll > 40 && controls.roll < 60)
+                {
+                    pidTuneState = 0;
+                }
+            
+                break;
+        }
+    }
+    return false;
 }
 
 void Controller::zeroThrusters()
 {
     thrusterData_t zeroedSpeeds;
-    updateThrusters(&zeroedSpeeds);  // turn thrusters off
+    updateThrusters(zeroedSpeeds);  // turn thrusters off
 }
 
 void Controller::resetPidError()
@@ -284,4 +314,6 @@ void Controller::resetPidError()
     pRpid.reset();
     rRpid.reset();
     yRpid.reset();
+    pApid.reset();
+    rApid.reset();
 }

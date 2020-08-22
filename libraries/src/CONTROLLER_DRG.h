@@ -56,17 +56,22 @@ class Controller{
         
         thrusterData_t tSpeeds;
         
-        void updateThrusters(thrusterData_t* speeds);
+        void updateThrusters(thrusterData_t & speeds);
         float map(float x, float in_min, float in_max, float out_min, float out_max);
         float mapDeadzone(float x, float iL, float iH, float oL, float oH, float dzSf);
         float limit(float x, float lowerLim, float upperLim);
         float limitMotors(float x);
+        
+        bool tunePidK(radioData_t & controls, Pid * toTuneP, Pid * toTuneR);
+        
+        void run(radioData_t &controls, angleData_t &angles, angleData_t &angles_filtered, angleData_t &setpointAngles);
     
     public:
         void setup(bool thrusterCal);
-        void run(radioData_t & controls, angleData_t & angles, angleData_t & angles_filtered);
-        void resetPidK(radioData_t & controls);
-        void tunePidK(radioData_t & controls);
+        void runRate(radioData_t &controls, angleData_t &angles, angleData_t &angles_filtered);
+        void runAngle(radioData_t &controls, angleData_t &angles, angleData_t &angles_filtered);
+        bool tuneRate(radioData_t & controls);
+        bool tuneAngle(radioData_t & controls);
         void zeroThrusters();
         void resetPidError();
 };

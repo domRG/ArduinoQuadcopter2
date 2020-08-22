@@ -33,9 +33,9 @@ bool Radio::run(radioData_t* outControls){
 	outControls->pitch = inputPercentages[1];
 	outControls->throttle = inputPercentages[2];
 	outControls->yaw = inputPercentages[3];
-	outControls->auxA = inputPercentages[4];
-	outControls->auxB = inputPercentages[5];
-	return (limitsSet == 0b0000111111111111) ? true : false;  // ignore
+	outControls->auxA = (inputPercentages[4] > 50.0);
+	outControls->auxB = (inputPercentages[5] > 50.0);
+	return (limitsSet == 0b0000111111111111);  // ignore
 }
 
 uint8_t Radio::getNew(){
@@ -44,6 +44,11 @@ uint8_t Radio::getNew(){
 
 void Radio::resetNew(){
 	newFlag &= 0;
+}
+
+bool Radio::isOkToArm()
+{
+	return (limitsSet == 0b0000111111111111) && inputPercentages[2] < 10.0;
 }
 
 void Radio::interruptHandling(uint8_t channelId) {

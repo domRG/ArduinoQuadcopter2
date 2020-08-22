@@ -43,17 +43,17 @@ float FilterChLp2::step(float x) //class II
 }
 
 Mpu6050::Mpu6050() {
-	filterDp = FilterChLp2();
-	filterDr = FilterChLp2();
-	filterDy = FilterChLp2();
-//    angles.p = 0;
-//    angles.r = 0;
-//    angles.y = 0;
+    filterDp = FilterChLp2();
+    filterDr = FilterChLp2();
+    filterDy = FilterChLp2();
+    filterAx = FilterChLp2();
+    filterAy = FilterChLp2();
+    filterAz = FilterChLp2();
 }
 
 void Mpu6050::setup(bool cal)
 {
-	Wire.begin();
+    Wire.begin();
 
 	Wire.beginTransmission(MPU_addr);
 
@@ -75,7 +75,15 @@ void Mpu6050::setup(bool cal)
 	Wire.endTransmission(true);
 	
 	readBaselineFromEeprom();
-	
+//    Serial.println(data.merged.az);
+    counter = 0;
+    while(data.merged.az == 0){
+        update();
+        counter++;
+    }
+//    Serial.println(counter);
+//    Serial.println(data.merged.az);
+    
 	if (cal) {
 		calibrate();
 	}
@@ -111,12 +119,13 @@ void Mpu6050::calibrate() {
 	}
     
     divide(angleSum, mpuCalSamples);
-    
-	Serial.println();
-	Serial.print("Recording complete");
 	
 	add(angleSum, angles_baseline);
 	writeBaselineToEeprom();
+    Serial.println();
+    Serial.printf("Recording complete\nOffsets are: %f, %f, %f, %f, %f\n", angles_baseline.dP, angles_baseline.dR,
+                  angles_baseline.dY, angles_baseline.aP, angles_baseline.aR);
+    return;
 }
 
 void Mpu6050::readBaselineFromEeprom()
@@ -146,7 +155,7 @@ void Mpu6050::update()
 	Wire.requestFrom(MPU_addr, 14, true);
 	while (Wire.available() < 14)
 	{
-//		Serial.println("Waiting for MPU");
+		Serial.println("Waiting for MPU");
 	}
     data.raw.ayH = Wire.read();
     data.raw.ayL = Wire.read();
@@ -179,10 +188,22 @@ void Mpu6050::waitForNewAngles()
 	angles_filtered.dP = filterDp.step(angles.dP);
 	angles_filtered.dR = filterDr.step(angles.dR);
 	angles_filtered.dY = filterDy.step(angles.dY);
- 
     
-    angles.aP = atan(-1*data.merged.ax/sqrt(pow(data.merged.ay,2) + pow(data.merged.az,2)))*RAD2DEG - angles_baseline.aP;
-    angles.aR = atan(data.merged.ay/sqrt(pow(data.merged.ax,2) + pow(data.merged.az,2)))*RAD2DEG - angles_baseline.aR;
+    float data_filtered_ax = filterAx.step((float)data.merged.ax);
+    float data_filtered_ay = filterAy.step((float)data.merged.ay);
+    float data_filtered_az = filterAz.step((float)data.merged.az);
+    
+    angles.aP = atan(-1*data_filtered_ax/sqrt(pow(data_filtered_ay,2) + pow(data_filtered_az,2)))*RAD2DEG - angles_baseline.aP;
+    angles.aR = atan(data_filtered_ay/sqrt(pow(data_filtered_ax,2) + pow(data_filtered_az,2)))*RAD2DEG - angles_baseline.aR;
+    
+//    static float firstValues[3] = {(float)data.merged.ax, (float)data.merged.ay, (float)data.merged.az};
+//    static uint16_t counter = 0;
+//    if(counter++ >= 0x0400){
+//        Serial.printf("%f\t%f\t%f\n", firstValues[0], firstValues[1], firstValues[2]);
+//        Serial.printf("%f\t%f\t%f\n", (float)data.merged.ax, (float)data.merged.ay, (float)data.merged.az);
+//        //firstValues[0], firstValues[1], firstValues[2]);
+//        counter = 0;
+//    }
     
     angles.p = gyAcMix * (angles.p + angles.dP * 0.001) + (1 - gyAcMix) * (angles.aP);
     angles.r = gyAcMix * (angles.r + angles.dR * 0.001) + (1 - gyAcMix) * (angles.aR);
