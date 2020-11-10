@@ -1,3 +1,4 @@
+
 # ArduinoQuadcopter2
 A revisit to my [*old project*](https://github.com/domRG/ArduinoQuadcopter) starting a fresh software build
 
@@ -14,7 +15,7 @@ A revisit to my [*old project*](https://github.com/domRG/ArduinoQuadcopter) star
 
 (CAUTION: Extra Details may be controller specific - I do not know!)
 
-### Interaction
+### Interaction (outdated - not necessarily correct, please examine code for more information)
 #### To Fly:
 1. <span style="background-color:#ffa500;">{T}</span> - LOW
 2. <span style="background-color:#6a5acd;">{Psw}</span> - LOW
@@ -88,13 +89,12 @@ Motors should now idle, quad is ready to fly.
 
 ## Caution
 
-When <span style="background-color:#6a5acd;">{Psw}</span> and <span style="background-color:#ffa500;">{T}</span> are not LOW, they will block startup when <span style="background-color:#ff0000;">{ARM}</span> switch to HIGH
-<br /><b>BUT</b> <i>at the moment</i> will release to ARMED, so always double check <span style="background-color:#ff0000;">{ARM}</span> is LOW before exiting Programming Mode (<span style="background-color:#6a5acd;">{Psw}</span> - LOW)
+Always take care when <b>arming</b>.
 
 ---
 ### Big-Picture TODO
-- [ ] Angle control loop on top of current rate control loop
-- [ ] Require cycle of <span style="background-color:#ff0000;">{ARM}</span> if blocked on initial attempt
+- [x] Angle control loop on top of current rate control loop
+- [x] Require cycle of <span style="background-color:#ff0000;">{ARM}</span> if blocked on initial attempt
 - [ ] Restructure code for improved encapsulation
 
 ---
