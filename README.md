@@ -2,7 +2,31 @@
 # ArduinoQuadcopter2
 A revisit to my [*old project*](https://github.com/domRG/ArduinoQuadcopter) starting a fresh software build
 
-## Current Controls
+Controls we're outdated.
+
+Currently functions in a [Finite State Machine](https://www.drdobbs.com/cpp/state-machine-design-in-c/184401236) format
+Essentially it uses one auxilliary switch to arm/disarm the motors, and the seconds aux switch to toggle angle/rate control (when armed) and to enter programming mode (when disarmed), with lock-states to prevent accidental arming.
+For further details look in [the code](https://github.com/domRG/ArduinoQuadcopter2/blob/master/quad_t4_1.0/quad_t4_1.0.ino), specifically `int runRunState(){`{:.cpp} currently at line 92.
+
+The outdated control guide can be found at the bottom. This should generally be accurate, though functionality of the auxilliary switches has been change (to implement the state-machine above) so you should be exercised with caution!
+(I recommend doing a run through with the propellers disconnected and the Serial port connected to see feedback of what's going on.)
+
+## Caution
+
+Always take care when <b>arming</b>.
+
+---
+### Big-Picture TODO
+- [x] Angle control loop on top of current rate control loop
+- [x] Require cycle of <span style="background-color:#ff0000;">{ARM}</span> if blocked on initial attempt
+- [ ] Restructure code for improved encapsulation
+
+---
+#### Viewing trouble
+View source-code of README.md using https://markdown-editor.github.io/ for colour coding
+
+
+## ***Outdated*** Controls (for reference only)
 #### Channel Map
 | Channel | Assignment | Reference | Extra Details |
 | :-: | :-: | :-: | :-: |
@@ -86,17 +110,3 @@ Motors should now idle, quad is ready to fly.
 2. <b><mark>Wait for 10 seconds<mark></b>
 2. <b><mark>Quad may now be moved<mark></b>
 2. <span style="background-color:#6a5acd;">{Psw}</span> - LOW, to exit
-
-## Caution
-
-Always take care when <b>arming</b>.
-
----
-### Big-Picture TODO
-- [x] Angle control loop on top of current rate control loop
-- [x] Require cycle of <span style="background-color:#ff0000;">{ARM}</span> if blocked on initial attempt
-- [ ] Restructure code for improved encapsulation
-
----
-#### Viewing trouble
-View source-code of README.md using https://markdown-editor.github.io/ for colour coding
