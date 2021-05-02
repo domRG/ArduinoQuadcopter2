@@ -84,12 +84,15 @@ int main() {
       mpu.waitForNewAngles();
 
 //      Serial.printf("%d\t%f\t%f\t%f\t%f\t0\t100\n",runState*40,controls.auxA,auxASwPrev,controls.auxB,auxBSwPrev);
-      updateRunState(runRunState());
+      updateRunState(runRunState((uint32_t)(timeNow - radioLastUpdate)));
     }
   }
 }
 
-int runRunState(){
+int runRunState(uint32_t radioTimeout){
+  if (radioTimeout >= 70000){
+    runState = -1;
+  }
   switch(runState){
     case 0:  // off
       armed = false;
