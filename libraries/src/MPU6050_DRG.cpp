@@ -155,7 +155,7 @@ void Mpu6050::update()
 	Wire.requestFrom(MPU_addr, 14, true);
 	while (Wire.available() < 14)
 	{
-		Serial.println("Waiting for MPU");
+		// Serial.println("Waiting for MPU");
 	}
     data.raw.ayH = Wire.read();
     data.raw.ayL = Wire.read();
